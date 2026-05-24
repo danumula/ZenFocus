@@ -1650,3 +1650,15 @@ body {
     width: 100%;
   }
 }
+
+@keyframes barGrowth {
+  from {
+    transform: scaleY(0);
+    transform-origin: bottom;
+  }
+  to {
+    transform: scaleY(1);
+    transform-origin: bottom;
+  }
+}
+
