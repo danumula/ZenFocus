@@ -48,6 +48,13 @@
       </div>
       
       <div class="header-widgets">
+        <button id="btn-monk-toggle" class="btn btn-secondary btn-monk" title="Toggle Monk Mode">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" class="icon-lotus">
+            <path d="M12 22s-8-3-8-8c0-3.5 2.5-6 5-6 .5 0 1 0 1.5.2.5-.2 1-.2 1.5-.2s1 0 1.5.2c.5-.2 1-.2 1.5-.2 2.5 0 5 2.5 5 6 0 5-8 8-8 8z" />
+            <path d="M12 22s-4-2-4-5c0-1.5 1-3 2.5-3 .5 0 .8.1 1.1.2.3-.1.6-.2 1.1-.2s.8.1 1.1.2c.3-.1.6-.2 1.1-.2 1.5 0 2.5 1.5 2.5 3 0 3-4 5-4 5z" />
+          </svg>
+          <span>Monk Mode</span>
+        </button>
         <div class="clock-widget">
           <div id="clock-time">00:00:00</div>
           <div id="clock-date">Sunday, May 24</div>
@@ -58,7 +65,7 @@
     <!-- Main Workspace -->
     <main class="app-main">
       
-      <!-- Left Column: Focus & Audio Tools -->
+      <!-- Left Column: Focus, Audio & Breathing Tools -->
       <section class="workspace-panel-left">
         
         <!-- Pomodoro Focus Card -->
@@ -115,6 +122,17 @@
               Soundscapes
             </h2>
             <span class="badge">Procedural Audio</span>
+          </div>
+
+          <!-- Sound presets bar -->
+          <div class="sound-presets-bar">
+            <span class="presets-label">Presets:</span>
+            <div class="presets-list">
+              <button class="btn-preset" data-preset="storm" title="Stormy Desk">⛈️ Storm</button>
+              <button class="btn-preset" data-preset="sanctuary" title="Forest Sanctuary">🌲 Forest</button>
+              <button class="btn-preset" data-preset="ocean" title="Deep Ocean Wave">🌊 Ocean</button>
+              <button class="btn-preset text-preset" data-preset="reset">Mute</button>
+            </div>
           </div>
 
           <div class="sound-grid">
@@ -184,78 +202,231 @@
               </div>
             </div>
           </div>
-        </div>
-      </section>
 
-      <!-- Right Column: Kanban Desk -->
-      <section class="workspace-panel-right">
-        <div class="glass-card kanban-card">
+          <!-- Custom Presets slots -->
+          <div class="custom-presets-wrapper">
+            <span class="custom-label">My Mixes:</span>
+            <div class="custom-presets-row">
+              <button class="btn-custom" data-slot="1">Slot 1</button>
+              <button class="btn-custom" data-slot="2">Slot 2</button>
+              <button class="btn-custom" data-slot="3">Slot 3</button>
+              <button id="btn-save-mix" class="btn-save" title="Save current levels to selected slot">💾 Save Mix</button>
+            </div>
+          </div>
+
+          <!-- Binaural Beats Row -->
+          <div class="binaural-container">
+            <div class="binaural-header">
+              <div class="binaural-title-box">
+                <h4>Binaural Waves</h4>
+                <span class="binaural-badge">Headphones Req.</span>
+              </div>
+              <div class="binaural-tabs">
+                <button class="wave-tab active" data-wave="off">Off</button>
+                <button class="wave-tab" data-wave="alpha" title="Alpha Wave (10Hz) for Cognitive Learning & Focus">Alpha</button>
+                <button class="wave-tab" data-wave="theta" title="Theta Wave (5Hz) for Creative Flow & Zen Meditation">Theta</button>
+              </div>
+            </div>
+            <div class="sound-item no-border-padding" id="binaural-volume-row">
+              <div class="slider-wrapper">
+                <input type="range" id="binaural-slider" class="sound-slider" min="0" max="100" value="30" aria-label="Binaural Beats Volume">
+                <div class="slider-progress" style="width: 30%"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Zen Breathing Coach Card -->
+        <div class="glass-card breathing-card">
           <div class="card-header">
             <h2 class="card-title">
               <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
-                <rect x="3" y="3" width="18" height="18" rx="2" />
-                <path d="M9 3v18M15 3v18M3 9h18" />
+                <circle cx="12" cy="12" r="10" />
+                <path d="M12 8v8M8 12h8" />
               </svg>
-              Kanban Desk
+              Zen Breathing
             </h2>
-            <div class="task-stats">
+            <span class="badge">Box Coach</span>
+          </div>
+
+          <div class="breathing-coach-container">
+            <div class="breathing-visual-container">
+              <div class="breathing-circle-glow" id="breath-glow"></div>
+              <div class="breathing-circle" id="breath-circle"></div>
+              <div class="breathing-timer" id="breath-timer-val">Ready</div>
+            </div>
+            <div class="breathing-instruction" id="breath-instruction">Let your lungs expand with quiet focus.</div>
+          </div>
+
+          <div class="breathing-controls">
+            <button id="btn-breath-toggle" class="btn btn-secondary">Start Coach</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Right Column: Kanban Desk + Focus Insights Card -->
+      <section class="workspace-panel-right">
+        <div class="glass-card kanban-card">
+          <!-- Tabbed Desk Header -->
+          <div class="card-header flex-header">
+            <div class="desk-tabs">
+              <button class="desk-tab active" data-pane="tasks">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="3" y="3" width="18" height="18" rx="2" />
+                  <path d="M9 3v18M15 3v18M3 9h18" />
+                </svg>
+                <span>Tasks Desk</span>
+              </button>
+              <button class="desk-tab" data-pane="insights">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M18 20V10M12 20V4M6 20v-6" />
+                </svg>
+                <span>Insights Desk</span>
+              </button>
+            </div>
+            
+            <div class="task-stats" id="task-stats-display">
               <span id="tasks-count">0 tasks</span>
             </div>
           </div>
 
-          <!-- Add Task Input Form -->
-          <form id="task-form" class="task-input-bar">
-            <input type="text" id="task-input" placeholder="Type a new focus task..." required autocomplete="off">
-            
-            <div class="select-wrapper">
-              <select id="task-priority" aria-label="Priority selector">
-                <option value="low">Low</option>
-                <option value="medium" selected>Medium</option>
-                <option value="high">High</option>
-              </select>
+          <!-- Pane 1: Tasks Desk -->
+          <div id="pane-tasks" class="pane-content">
+            <!-- Add Task Input Form -->
+            <form id="task-form" class="task-input-bar">
+              <input type="text" id="task-input" placeholder="Type a new focus task..." required autocomplete="off">
+              
+              <div class="select-wrapper">
+                <select id="task-priority" aria-label="Priority selector">
+                  <option value="low">Low</option>
+                  <option value="medium" selected>Medium</option>
+                  <option value="high">High</option>
+                </select>
+              </div>
+
+              <button type="submit" class="btn btn-primary" aria-label="Add Task">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5">
+                  <line x1="12" y1="5" x2="12" y2="19"></line>
+                  <line x1="5" y1="12" x2="19" y2="12"></line>
+                </svg>
+              </button>
+            </form>
+
+            <!-- Kanban Board Columns -->
+            <div class="kanban-board">
+              <!-- To Do -->
+              <div class="kanban-column" id="col-todo" data-status="todo">
+                <div class="column-header">
+                  <h3>To Do</h3>
+                  <span class="column-badge" id="badge-todo">0</span>
+                </div>
+                <div class="column-body drag-zone" id="list-todo">
+                  <!-- Tasks dynamically added here -->
+                </div>
+              </div>
+
+              <!-- In Progress -->
+              <div class="kanban-column" id="col-progress" data-status="progress">
+                <div class="column-header">
+                  <h3>In Progress</h3>
+                  <span class="column-badge" id="badge-progress">0</span>
+                </div>
+                <div class="column-body drag-zone" id="list-progress">
+                  <!-- Tasks dynamically added here -->
+                </div>
+              </div>
+
+              <!-- Completed -->
+              <div class="kanban-column" id="col-completed" data-status="completed">
+                <div class="column-header">
+                  <h3>Completed</h3>
+                  <span class="column-badge" id="badge-completed">0</span>
+                </div>
+                <div class="column-body drag-zone" id="list-completed">
+                  <!-- Tasks dynamically added here -->
+                </div>
+              </div>
             </div>
+          </div>
 
-            <button type="submit" class="btn btn-primary" aria-label="Add Task">
-              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5">
-                <line x1="12" y1="5" x2="12" y2="19"></line>
-                <line x1="5" y1="12" x2="19" y2="12"></line>
-              </svg>
-            </button>
-          </form>
+          <!-- Pane 2: Focus Insights Desk -->
+          <div id="pane-insights" class="pane-content hidden">
+            <div class="insights-container">
+              
+              <!-- Focus Chart Section -->
+              <div class="insights-chart-card">
+                <div class="insights-card-header">
+                  <h4>Focus Energy Chart (Weekly)</h4>
+                  <span class="insights-subtitle">Focus minutes tracked locally</span>
+                </div>
+                <div class="chart-container">
+                  <svg class="focus-chart-svg" viewBox="0 0 460 160" width="100%" height="160">
+                    <defs>
+                      <linearGradient id="bar-grad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stop-color="var(--color-primary)" stop-opacity="1"/>
+                        <stop offset="100%" stop-color="var(--color-secondary)" stop-opacity="0.3"/>
+                      </linearGradient>
+                    </defs>
+                    
+                    <!-- Horizontal helper lines -->
+                    <line x1="30" y1="20" x2="440" y2="20" stroke="rgba(255,255,255,0.04)" stroke-width="1"/>
+                    <line x1="30" y1="60" x2="440" y2="60" stroke="rgba(255,255,255,0.04)" stroke-width="1"/>
+                    <line x1="30" y1="100" x2="440" y2="100" stroke="rgba(255,255,255,0.04)" stroke-width="1"/>
+                    <line x1="30" y1="135" x2="440" y2="135" stroke="rgba(255,255,255,0.08)" stroke-width="1.5"/>
+                    
+                    <!-- Left Y Labels -->
+                    <text x="5" y="24" fill="var(--color-text-dim)" font-size="9" font-weight="600">60m</text>
+                    <text x="5" y="64" fill="var(--color-text-dim)" font-size="9" font-weight="600">30m</text>
+                    <text x="5" y="104" fill="var(--color-text-dim)" font-size="9" font-weight="600">10m</text>
+                    <text x="12" y="139" fill="var(--color-text-dim)" font-size="9" font-weight="600">0</text>
+                    
+                    <!-- SVG Rectangles populated inside JS -->
+                    <g id="focus-chart-bars"></g>
+                    <!-- X Labels populated inside JS -->
+                    <g id="focus-chart-labels"></g>
+                  </svg>
+                </div>
+              </div>
 
-          <!-- Kanban Board Columns -->
-          <div class="kanban-board">
-            <!-- To Do -->
-            <div class="kanban-column" id="col-todo" data-status="todo">
-              <div class="column-header">
-                <h3>To Do</h3>
-                <span class="column-badge" id="badge-todo">0</span>
-              </div>
-              <div class="column-body drag-zone" id="list-todo">
-                <!-- Tasks dynamically added here -->
-              </div>
-            </div>
+              <!-- Milestones Badge Grid Section -->
+              <div class="insights-milestones-card">
+                <div class="insights-card-header">
+                  <h4>Zen Focus Milestones</h4>
+                  <span class="insights-subtitle" id="milestones-sessions-count">0 focus sessions completed</span>
+                </div>
+                
+                <div class="milestones-badge-grid">
+                  
+                  <!-- Badge 1 -->
+                  <div class="milestone-badge-item locked" id="badge-initiate">
+                    <div class="badge-emblem">🌱</div>
+                    <div class="badge-text-box">
+                      <h5>Zen Initiate</h5>
+                      <p>Complete 1 focus session</p>
+                    </div>
+                  </div>
+                  
+                  <!-- Badge 2 -->
+                  <div class="milestone-badge-item locked" id="badge-flow">
+                    <div class="badge-emblem">🌊</div>
+                    <div class="badge-text-box">
+                      <h5>Flow Master</h5>
+                      <p>Complete 3 focus sessions</p>
+                    </div>
+                  </div>
+                  
+                  <!-- Badge 3 -->
+                  <div class="milestone-badge-item locked" id="badge-monk">
+                    <div class="badge-emblem">🕯️</div>
+                    <div class="badge-text-box">
+                      <h5>Monk Mode Elite</h5>
+                      <p>Complete 5+ focus sessions</p>
+                    </div>
+                  </div>
 
-            <!-- In Progress -->
-            <div class="kanban-column" id="col-progress" data-status="progress">
-              <div class="column-header">
-                <h3>In Progress</h3>
-                <span class="column-badge" id="badge-progress">0</span>
+                </div>
               </div>
-              <div class="column-body drag-zone" id="list-progress">
-                <!-- Tasks dynamically added here -->
-              </div>
-            </div>
 
-            <!-- Completed -->
-            <div class="kanban-column" id="col-completed" data-status="completed">
-              <div class="column-header">
-                <h3>Completed</h3>
-                <span class="column-badge" id="badge-completed">0</span>
-              </div>
-              <div class="column-body drag-zone" id="list-completed">
-                <!-- Tasks dynamically added here -->
-              </div>
             </div>
           </div>
         </div>

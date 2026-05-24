@@ -12,6 +12,7 @@ document.addEventListener('DOMContentLoaded', () => {
     btnEnter: document.getElementById('btn-enter'),
     clockTime: document.getElementById('clock-time'),
     clockDate: document.getElementById('clock-date'),
+    btnMonkToggle: document.getElementById('btn-monk-toggle'),
     
     // Pomodoro Elements
     timerTime: document.getElementById('timer-time'),
@@ -23,8 +24,29 @@ document.addEventListener('DOMContentLoaded', () => {
     iconPause: document.getElementById('icon-pause'),
     modeTabs: document.querySelectorAll('.mode-tab'),
     
-    // Sound Elements
+    // Sound & Mixer Elements
     soundItems: document.querySelectorAll('.sound-item'),
+    presetButtons: document.querySelectorAll('.btn-preset'),
+    btnMuteAll: document.querySelector('.text-preset'),
+    mixSlots: document.querySelectorAll('.btn-custom'),
+    btnSaveMix: document.getElementById('btn-save-mix'),
+    
+    // Binaural Controls
+    binauralTabs: document.querySelectorAll('.wave-tab'),
+    binauralSlider: document.getElementById('binaural-slider'),
+    
+    // Zen Breathing Coach Elements
+    breathCircle: document.getElementById('breath-circle'),
+    breathGlow: document.getElementById('breath-glow'),
+    breathTimerVal: document.getElementById('breath-timer-val'),
+    breathInstruction: document.getElementById('breath-instruction'),
+    btnBreathToggle: document.getElementById('btn-breath-toggle'),
+    
+    // Kanban Desk Tab and Panes
+    deskTabs: document.querySelectorAll('.desk-tab'),
+    paneTasks: document.getElementById('pane-tasks'),
+    paneInsights: document.getElementById('pane-insights'),
+    taskStatsDisplay: document.getElementById('task-stats-display'),
     
     // Kanban Elements
     taskForm: document.getElementById('task-form'),
@@ -38,6 +60,11 @@ document.addEventListener('DOMContentLoaded', () => {
     badgeTodo: document.getElementById('badge-todo'),
     badgeProgress: document.getElementById('badge-progress'),
     badgeCompleted: document.getElementById('badge-completed'),
+    
+    // Insights Section
+    chartBarsContainer: document.getElementById('focus-chart-bars'),
+    chartLabelsContainer: document.getElementById('focus-chart-labels'),
+    milestonesSessionsCount: document.getElementById('milestones-sessions-count'),
     
     // Inspiration shelf
     quoteCardInner: document.getElementById('quote-card-inner'),
@@ -56,6 +83,9 @@ document.addEventListener('DOMContentLoaded', () => {
   // State Management
   const STATE = {
     audioInitialized: false,
+    monkMode: false,
+    selectedMixSlot: null,
+    particleSpeedMultiplier: 1.0,
     timer: {
       intervalId: null,
       duration: 1500, // Default 25 minutes
@@ -63,7 +93,22 @@ document.addEventListener('DOMContentLoaded', () => {
       mode: 'focus', // focus, short, long
       isRunning: false
     },
+    breathing: {
+      isRunning: false,
+      intervalId: null,
+      phaseTimer: null,
+      phase: 0, // 0: inhale, 1: hold full, 2: exhale, 3: hold empty
+      timeRemaining: 4
+    },
+    binaural: {
+      type: 'off', // off, alpha, theta
+      volume: 30
+    },
     tasks: [],
+    stats: {
+      sessions: [], // array of focus timestamps
+      weeklyActivity: [0, 0, 0, 0, 0, 0, 0] // aggregated focus minutes past 7 days
+    },
     quotes: [
       { text: "Simplify your workflow, then amplify your mind.", author: "ZenFocus Wisdom" },
       { text: "Focus is a muscle, and silence is its gym.", author: "Deep Mind" },
@@ -106,14 +151,15 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       
       update() {
-        this.x += this.speedX;
-        this.y += this.speedY;
+        // Particles run extremely slow in Monk Mode
+        this.x += this.speedX * STATE.particleSpeedMultiplier;
+        this.y += this.speedY * STATE.particleSpeedMultiplier;
         
         // Bounce on borders
         if (this.x < 0 || this.x > canvas.width) this.speedX *= -1;
         if (this.y < 0 || this.y > canvas.height) this.speedY *= -1;
         
-        // Mouse reaction (subtle attraction)
+        // Mouse reaction (subtle attraction, disabled or slowed in Monk Mode)
         if (STATE.mouse.x !== null && STATE.mouse.y !== null) {
           const dx = STATE.mouse.x - this.x;
           const dy = STATE.mouse.y - this.y;
@@ -121,8 +167,8 @@ document.addEventListener('DOMContentLoaded', () => {
           
           if (distance < 180) {
             const force = (180 - distance) / 180;
-            this.x += (dx / distance) * force * 0.6;
-            this.y += (dy / distance) * force * 0.6;
+            this.x += (dx / distance) * force * 0.6 * STATE.particleSpeedMultiplier;
+            this.y += (dy / distance) * force * 0.6 * STATE.particleSpeedMultiplier;
           }
         }
       }
@@ -131,9 +177,18 @@ document.addEventListener('DOMContentLoaded', () => {
         ctx.save();
         ctx.beginPath();
         ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(168, 85, 247, ${this.alpha})`; // Sleek purple particles
-        ctx.shadowBlur = this.size * 2;
-        ctx.shadowColor = 'rgba(168, 85, 247, 0.4)';
+        
+        // Color shifts depending on Monk Mode
+        if (STATE.monkMode) {
+          ctx.fillStyle = `rgba(139, 92, 246, ${this.alpha * 0.7})`; // Soft violet
+          ctx.shadowBlur = this.size;
+          ctx.shadowColor = 'rgba(139, 92, 246, 0.2)';
+        } else {
+          ctx.fillStyle = `rgba(168, 85, 247, ${this.alpha})`; // Premium purple
+          ctx.shadowBlur = this.size * 2;
+          ctx.shadowColor = 'rgba(168, 85, 247, 0.4)';
+        }
+        
         ctx.fill();
         ctx.restore();
       }
@@ -149,8 +204,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const animate = () => {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       
-      // Draw a soft glowing gradient at mouse position
-      if (STATE.mouse.x !== null && STATE.mouse.y !== null) {
+      // Draw a soft glowing gradient at mouse position (only if not in Monk Mode)
+      if (STATE.mouse.x !== null && STATE.mouse.y !== null && !STATE.monkMode) {
         const glowGrad = ctx.createRadialGradient(
           STATE.mouse.x, STATE.mouse.y, 10,
           STATE.mouse.x, STATE.mouse.y, 250
@@ -206,7 +261,9 @@ document.addEventListener('DOMContentLoaded', () => {
       rain: null,
       waves: null,
       birds: null,
-      drone: null
+      drone: null,
+      binaural: null,
+      breathing: null
     },
     
     // Creates a noise buffer filled with white noise values
@@ -221,6 +278,7 @@ document.addEventListener('DOMContentLoaded', () => {
     },
     
     init() {
+      if (STATE.audioInitialized) return;
       try {
         const AudioContext = window.AudioContext || window.webkitAudioContext;
         this.ctx = new AudioContext();
@@ -244,6 +302,10 @@ document.addEventListener('DOMContentLoaded', () => {
         this.buildWavesSynth();
         this.buildBirdsSynth();
         this.buildDroneSynth();
+        
+        // Build new dynamic premium synthesizers
+        this.buildBinauralSynth();
+        this.buildBreathingSynth();
         
         STATE.audioInitialized = true;
         console.log("Web Audio Context and procedurals initialized successfully.");
@@ -390,7 +452,6 @@ document.addEventListener('DOMContentLoaded', () => {
         // Random bird patterns (chirps)
         const mode = Math.floor(Math.random() * 3);
         if (mode === 0) {
-          // Double quick chirp
           osc.frequency.setValueAtTime(3200, now);
           osc.frequency.exponentialRampToValueAtTime(3800, now + 0.04);
           osc.frequency.exponentialRampToValueAtTime(2800, now + 0.08);
@@ -399,7 +460,6 @@ document.addEventListener('DOMContentLoaded', () => {
           tweetGain.gain.linearRampToValueAtTime(0.08, now + 0.01);
           tweetGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.08);
           
-          // Second chirp
           setTimeout(() => {
             if (!this.synths.birds.active) return;
             const now2 = this.ctx.currentTime;
@@ -424,7 +484,6 @@ document.addEventListener('DOMContentLoaded', () => {
           osc.start(now);
           osc.stop(now + 0.1);
         } else if (mode === 1) {
-          // Simple sweet slide
           osc.frequency.setValueAtTime(2400, now);
           osc.frequency.exponentialRampToValueAtTime(3400, now + 0.12);
           
@@ -435,7 +494,6 @@ document.addEventListener('DOMContentLoaded', () => {
           osc.start(now);
           osc.stop(now + 0.15);
         } else {
-          // Rapid warble (3 chirps)
           osc.frequency.setValueAtTime(3000, now);
           osc.frequency.linearRampToValueAtTime(3300, now + 0.03);
           osc.frequency.linearRampToValueAtTime(2800, now + 0.06);
@@ -452,7 +510,6 @@ document.addEventListener('DOMContentLoaded', () => {
       };
       
       const birdsInterval = setInterval(() => {
-        // Only trigger bird sounds randomly every 3-8 seconds
         if (Math.random() > 0.45) {
           playTweet();
         }
@@ -474,9 +531,8 @@ document.addEventListener('DOMContentLoaded', () => {
       oscA.type = 'triangle';
       oscB.type = 'triangle';
       
-      // Deep focus notes (Detuned low hum)
       oscA.frequency.setValueAtTime(55, this.ctx.currentTime); // A1 note
-      oscB.frequency.setValueAtTime(55.4, this.ctx.currentTime); // detuned by 0.4Hz for natural analog chorus
+      oscB.frequency.setValueAtTime(55.4, this.ctx.currentTime); // detuned by 0.4Hz
       
       const filter = this.ctx.createBiquadFilter();
       filter.type = 'lowpass';
@@ -485,7 +541,6 @@ document.addEventListener('DOMContentLoaded', () => {
       const gain = this.ctx.createGain();
       gain.gain.setValueAtTime(0, this.ctx.currentTime);
       
-      // Slow pulsing drone LFO
       const lfo = this.ctx.createOscillator();
       lfo.frequency.setValueAtTime(0.05, this.ctx.currentTime); // 20s cycle
       
@@ -515,21 +570,94 @@ document.addEventListener('DOMContentLoaded', () => {
       };
     },
     
+    // E. Premium Binaural Beats Synthesizer (With isolated Stereo Panning)
+    buildBinauralSynth() {
+      const oscL = this.ctx.createOscillator();
+      const oscR = this.ctx.createOscillator();
+      
+      oscL.type = 'sine';
+      oscR.type = 'sine';
+      
+      // Standard deep meditation frequencies (detuned slightly)
+      oscL.frequency.setValueAtTime(150, this.ctx.currentTime); // Left: 150Hz
+      oscR.frequency.setValueAtTime(150, this.ctx.currentTime); // Right starts at 150Hz (Off)
+      
+      const panL = this.ctx.createStereoPanner();
+      const panR = this.ctx.createStereoPanner();
+      
+      panL.pan.setValueAtTime(-1, this.ctx.currentTime); // 100% Left Speaker
+      panR.pan.setValueAtTime(1, this.ctx.currentTime);  // 100% Right Speaker
+      
+      const gainL = this.ctx.createGain();
+      const gainR = this.ctx.createGain();
+      gainL.gain.setValueAtTime(0.5, this.ctx.currentTime);
+      gainR.gain.setValueAtTime(0.5, this.ctx.currentTime);
+      
+      const binMasterGain = this.ctx.createGain();
+      binMasterGain.gain.setValueAtTime(0, this.ctx.currentTime); // Start muted
+      
+      // Connections
+      oscL.connect(gainL);
+      gainL.connect(panL);
+      panL.connect(binMasterGain);
+      
+      oscR.connect(gainR);
+      gainR.connect(panR);
+      panR.connect(binMasterGain);
+      
+      binMasterGain.connect(this.masterGain);
+      
+      oscL.start();
+      oscR.start();
+      
+      this.synths.binaural = {
+        gainNode: binMasterGain,
+        oscR: oscR,
+        active: false
+      };
+    },
+    
+    // F. Zen Breathing Coach Ambient Synthesizer (Vocal Sweep Simulator)
+    buildBreathingSynth() {
+      const osc = this.ctx.createOscillator();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(150, this.ctx.currentTime); // starting hum pitch
+      
+      const filter = this.ctx.createBiquadFilter();
+      filter.type = 'lowpass';
+      filter.frequency.setValueAtTime(200, this.ctx.currentTime); // low starting lowpass
+      filter.Q.setValueAtTime(2.0, this.ctx.currentTime);
+      
+      const gain = this.ctx.createGain();
+      gain.gain.setValueAtTime(0, this.ctx.currentTime); // start silent
+      
+      osc.connect(filter);
+      filter.connect(gain);
+      gain.connect(this.masterGain);
+      
+      osc.start();
+      
+      this.synths.breathing = {
+        oscNode: osc,
+        filterNode: filter,
+        gainNode: gain,
+        active: false
+      };
+    },
+    
     // Synthesize a beautiful Metallic Meditation Bowl chime dynamically!
     playZenBowlChime() {
       if (!this.ctx) return;
       const now = this.ctx.currentTime;
       
-      // Harmonic Series for metal chimes
       const frequencies = [220, 442, 663, 885, 1105, 1330];
       const gains = [0.25, 0.15, 0.12, 0.08, 0.05, 0.02];
       
       const chimeGain = this.ctx.createGain();
       chimeGain.gain.setValueAtTime(0, now);
       chimeGain.gain.linearRampToValueAtTime(0.4, now + 0.01);
-      chimeGain.gain.exponentialRampToValueAtTime(0.0001, now + 5.5); // long organic decay
+      chimeGain.gain.exponentialRampToValueAtTime(0.0001, now + 5.5);
       
-      // Resonance filter
       const filter = this.ctx.createBiquadFilter();
       filter.type = 'lowpass';
       filter.frequency.setValueAtTime(1500, now);
@@ -546,7 +674,6 @@ document.addEventListener('DOMContentLoaded', () => {
         osc.frequency.setValueAtTime(freq, now);
         
         oscGain.gain.setValueAtTime(gains[idx], now);
-        // Slight frequency modulation to sound natural
         osc.frequency.linearRampToValueAtTime(freq + (Math.random() * 2 - 1), now + 4.0);
         
         osc.connect(oscGain);
@@ -557,7 +684,7 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     },
     
-    // Toggle active synthesizer state
+    // Toggle active soundscapes
     toggleSound(name, sliderValue) {
       if (!this.ctx) this.init();
       if (this.ctx.state === 'suspended') {
@@ -571,12 +698,10 @@ document.addEventListener('DOMContentLoaded', () => {
       
       const now = this.ctx.currentTime;
       if (synth.active) {
-        // Ramp up volume
         const vol = sliderValue / 100 * 0.75;
         synth.gainNode.gain.setValueAtTime(0, now);
         synth.gainNode.gain.linearRampToValueAtTime(vol, now + 0.5);
       } else {
-        // Ramp down volume
         synth.gainNode.gain.linearRampToValueAtTime(0, now + 0.5);
       }
       
@@ -595,6 +720,62 @@ document.addEventListener('DOMContentLoaded', () => {
       if (synth.active) {
         synth.gainNode.gain.linearRampToValueAtTime(vol, now + 0.1);
       }
+    },
+    
+    // Toggle Binaural waves
+    setBinauralWave(waveType, volumePercent) {
+      if (!this.ctx) this.init();
+      const synth = this.synths.binaural;
+      if (!synth) return;
+      
+      const now = this.ctx.currentTime;
+      
+      if (waveType === 'off') {
+        synth.active = false;
+        synth.gainNode.gain.linearRampToValueAtTime(0, now + 0.4);
+      } else {
+        synth.active = true;
+        
+        // Detuning frequency sets the beat inside the brain
+        if (waveType === 'alpha') {
+          synth.oscR.frequency.linearRampToValueAtTime(160, now + 0.2); // Left 150, Right 160 = 10Hz Alpha Focus
+        } else if (waveType === 'theta') {
+          synth.oscR.frequency.linearRampToValueAtTime(155, now + 0.2); // Left 150, Right 155 = 5Hz Theta Zen
+        }
+        
+        // Map volume (soothing, max Binaural volume is capped lower for safety)
+        const vol = volumePercent / 100 * 0.22;
+        synth.gainNode.gain.setValueAtTime(synth.gainNode.gain.value, now);
+        synth.gainNode.gain.linearRampToValueAtTime(vol, now + 0.5);
+      }
+    },
+    
+    // Smooth Breathing Audio Sweep mapping (Box Breathing Ambient Synth)
+    sweepBreathingAudio(phase, durationSec) {
+      const synth = this.synths.breathing;
+      if (!synth || !synth.active) return;
+      
+      const now = this.ctx.currentTime;
+      
+      if (phase === 0) {
+        // Inhale - sweep pitch UP, open filter, ramp volume up
+        synth.gainNode.gain.linearRampToValueAtTime(0.2, now + durationSec);
+        synth.oscNode.frequency.linearRampToValueAtTime(250, now + durationSec);
+        synth.filterNode.frequency.linearRampToValueAtTime(650, now + durationSec);
+      } else if (phase === 1) {
+        // Hold full - keep steady at high focus humming
+        synth.gainNode.gain.linearRampToValueAtTime(0.2, now + durationSec);
+        synth.oscNode.frequency.setValueAtTime(250, now);
+        synth.filterNode.frequency.setValueAtTime(650, now);
+      } else if (phase === 2) {
+        // Exhale - sweep pitch DOWN, close filter, ramp volume down
+        synth.gainNode.gain.linearRampToValueAtTime(0.04, now + durationSec);
+        synth.oscNode.frequency.linearRampToValueAtTime(140, now + durationSec);
+        synth.filterNode.frequency.linearRampToValueAtTime(180, now + durationSec);
+      } else if (phase === 3) {
+        // Hold empty - silent, completely quiet base
+        synth.gainNode.gain.linearRampToValueAtTime(0.0, now + durationSec);
+      }
     }
   };
 
@@ -606,21 +787,15 @@ document.addEventListener('DOMContentLoaded', () => {
       const slider = item.querySelector('.sound-slider');
       const progress = item.querySelector('.slider-progress');
       
-      // Update custom background track slider
       const updateSliderTrack = (val) => {
         progress.style.width = `${val}%`;
       };
       
       updateSliderTrack(slider.value);
       
-      // Button Toggle
       toggleBtn.addEventListener('click', () => {
-        // Prompt audio engine
-        if (!STATE.audioInitialized) {
-          AUDIO.init();
-        }
+        if (!STATE.audioInitialized) AUDIO.init();
         
-        // If slider is 0, give it a default volume on activate
         if (slider.value == 0) {
           slider.value = 50;
           updateSliderTrack(50);
@@ -632,14 +807,15 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
           item.classList.remove('active');
         }
+        
+        // Remove preset highlight if soundscape ratios are customized
+        clearActivePresetHighlight();
       });
       
-      // Slider Input
       slider.addEventListener('input', (e) => {
         const val = e.target.value;
         updateSliderTrack(val);
         
-        // Auto-enable if volume is dragged up from 0
         if (val > 0 && !item.classList.contains('active')) {
           if (!STATE.audioInitialized) AUDIO.init();
           AUDIO.toggleSound(id, val);
@@ -650,17 +826,21 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
           AUDIO.setVolume(id, val);
         }
+        clearActivePresetHighlight();
       });
     });
+  };
+
+  const clearActivePresetHighlight = () => {
+    UI.presetButtons.forEach(btn => btn.classList.remove('active'));
   };
 
   // Space Entry handler (Browser Consent policy)
   UI.btnEnter.addEventListener('click', () => {
     UI.overlay.classList.add('hidden');
-    // Start Audio engine
     AUDIO.init();
     
-    // Set low default focus drone for automatic smooth backdrop hum
+    // Set a cozy Focus Drone backing hum automatically
     setTimeout(() => {
       const droneItem = document.getElementById('sound-drone');
       const slider = droneItem.querySelector('.sound-slider');
@@ -671,9 +851,293 @@ document.addEventListener('DOMContentLoaded', () => {
     }, 400);
   });
 
+  // ==========================================================================
+  // 5. NEW FOCUS FEATURE A: SOUNDSCAPE PRESETS & SAVERS
+  // ==========================================================================
+  const PRESET_RATIOS = {
+    storm: { rain: 85, waves: 0, birds: 0, drone: 25 },
+    sanctuary: { rain: 15, waves: 0, birds: 85, drone: 40 },
+    ocean: { rain: 0, waves: 80, birds: 0, drone: 60 }
+  };
+
+  const applySoundscapePreset = (presetName) => {
+    if (!STATE.audioInitialized) AUDIO.init();
+    const ratios = PRESET_RATIOS[presetName];
+    if (!ratios) return;
+    
+    UI.soundItems.forEach(item => {
+      const id = item.id.replace('sound-', '');
+      const targetVal = ratios[id];
+      const slider = item.querySelector('.sound-slider');
+      const progress = item.querySelector('.slider-progress');
+      
+      slider.value = targetVal;
+      progress.style.width = `${targetVal}%`;
+      
+      // Determine if synth should be turned on or off
+      const synth = AUDIO.synths[id];
+      const now = AUDIO.ctx.currentTime;
+      
+      if (targetVal > 0) {
+        item.classList.add('active');
+        synth.active = true;
+        AUDIO.setVolume(id, targetVal);
+      } else {
+        item.classList.remove('active');
+        synth.active = false;
+        synth.gainNode.gain.linearRampToValueAtTime(0, now + 0.3);
+      }
+    });
+  };
+
+  // Setup Presets Buttons click listeners
+  UI.presetButtons.forEach(btn => {
+    btn.addEventListener('click', () => {
+      UI.presetButtons.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      applySoundscapePreset(btn.dataset.preset);
+    });
+  });
+
+  // Mute All Button handler
+  UI.btnMuteAll.addEventListener('click', () => {
+    if (!STATE.audioInitialized) return;
+    clearActivePresetHighlight();
+    
+    UI.soundItems.forEach(item => {
+      const id = item.id.replace('sound-', '');
+      const slider = item.querySelector('.sound-slider');
+      const progress = item.querySelector('.slider-progress');
+      
+      slider.value = 0;
+      progress.style.width = '0%';
+      item.classList.remove('active');
+      
+      const synth = AUDIO.synths[id];
+      synth.active = false;
+      synth.gainNode.gain.linearRampToValueAtTime(0, AUDIO.ctx.currentTime + 0.4);
+    });
+  });
+
+  // Custom Mix slots local storage integration
+  const setupCustomMixes = () => {
+    // Select Slot
+    UI.mixSlots.forEach(slot => {
+      slot.addEventListener('click', () => {
+        UI.mixSlots.forEach(s => s.classList.remove('active'));
+        slot.classList.add('active');
+        STATE.selectedMixSlot = slot.dataset.slot;
+        
+        // Attempt load custom mix
+        const mix = localStorage.getItem(`zenfocus_mix_${STATE.selectedMixSlot}`);
+        if (mix) {
+          try {
+            const data = JSON.parse(mix);
+            loadSoundscapeMix(data);
+          } catch(err) {
+            console.error("Failed parsing mix: ", err);
+          }
+        }
+      });
+    });
+
+    // Save Mix
+    UI.btnSaveMix.addEventListener('click', () => {
+      if (!STATE.selectedMixSlot) {
+        alert("Please click and select Slot 1, 2, or 3 first!");
+        return;
+      }
+      
+      const mixData = {};
+      UI.soundItems.forEach(item => {
+        const id = item.id.replace('sound-', '');
+        mixData[id] = parseInt(item.querySelector('.sound-slider').value);
+      });
+      
+      // Save binaural settings too!
+      mixData['binauralType'] = STATE.binaural.type;
+      mixData['binauralVolume'] = parseInt(UI.binauralSlider.value);
+      
+      localStorage.setItem(`zenfocus_mix_${STATE.selectedMixSlot}`, JSON.stringify(mixData));
+      
+      const activeSlotBtn = document.querySelector(`.btn-custom[data-slot="${STATE.selectedMixSlot}"]`);
+      activeSlotBtn.textContent = `Mix ${STATE.selectedMixSlot} ✓`;
+      setTimeout(() => {
+        activeSlotBtn.textContent = `Slot ${STATE.selectedMixSlot}`;
+      }, 2000);
+    });
+  };
+
+  const loadSoundscapeMix = (data) => {
+    if (!STATE.audioInitialized) AUDIO.init();
+    
+    // Load standard synths
+    UI.soundItems.forEach(item => {
+      const id = item.id.replace('sound-', '');
+      if (data.hasOwnProperty(id)) {
+        const targetVal = data[id];
+        const slider = item.querySelector('.sound-slider');
+        const progress = item.querySelector('.slider-progress');
+        
+        slider.value = targetVal;
+        progress.style.width = `${targetVal}%`;
+        
+        const synth = AUDIO.synths[id];
+        const now = AUDIO.ctx.currentTime;
+        
+        if (targetVal > 0) {
+          item.classList.add('active');
+          synth.active = true;
+          AUDIO.setVolume(id, targetVal);
+        } else {
+          item.classList.remove('active');
+          synth.active = false;
+          synth.gainNode.gain.linearRampToValueAtTime(0, now + 0.3);
+        }
+      }
+    });
+
+    // Load Binaural Wave mix settings
+    if (data.hasOwnProperty('binauralType')) {
+      STATE.binaural.type = data.binauralType;
+      UI.binauralSlider.value = data.binauralVolume;
+      document.querySelector('#binaural-volume-row .slider-progress').style.width = `${data.binauralVolume}%`;
+      
+      UI.binauralTabs.forEach(tab => {
+        if (tab.dataset.wave === STATE.binaural.type) {
+          tab.classList.add('active');
+        } else {
+          tab.classList.remove('active');
+        }
+      });
+      AUDIO.setBinauralWave(STATE.binaural.type, data.binauralVolume);
+    }
+  };
 
   // ==========================================================================
-  // 5. POMODORO FOCUS TIMER CHAMBER
+  // 6. NEW FOCUS FEATURE B: BINAURAL BEATS LOGIC
+  // ==========================================================================
+  const setupBinauralBeats = () => {
+    // Slider Change
+    UI.binauralSlider.addEventListener('input', (e) => {
+      const val = e.target.value;
+      document.querySelector('#binaural-volume-row .slider-progress').style.width = `${val}%`;
+      STATE.binaural.volume = val;
+      
+      if (STATE.binaural.type !== 'off') {
+        AUDIO.setBinauralWave(STATE.binaural.type, val);
+      }
+    });
+
+    // Wave Tabs trigger
+    UI.binauralTabs.forEach(tab => {
+      tab.addEventListener('click', () => {
+        UI.binauralTabs.forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        
+        STATE.binaural.type = tab.dataset.wave;
+        
+        if (STATE.binaural.type !== 'off') {
+          if (!STATE.audioInitialized) AUDIO.init();
+        }
+        
+        AUDIO.setBinauralWave(STATE.binaural.type, UI.binauralSlider.value);
+      });
+    });
+  };
+
+  // ==========================================================================
+  // 7. NEW FOCUS FEATURE C: ZEN BOX BREATHING COACH
+  // ==========================================================================
+  const BREATHING_PHASES = [
+    { title: "Inhale", desc: "Draw in slow, peaceful air.", circleClass: "breath-inhale", glowClass: "breath-glow-inhale" },
+    { title: "Hold Full", desc: "Let focus settle in still lungs.", circleClass: "breath-inhale", glowClass: "breath-glow-inhale" },
+    { title: "Exhale", desc: "Quietly release all distraction.", circleClass: "breath-exhale", glowClass: "breath-glow-exhale" },
+    { title: "Hold Empty", desc: "Enjoy the space of pure calm.", circleClass: "breath-exhale", glowClass: "breath-glow-exhale" }
+  ];
+
+  const updateBreathingVisual = () => {
+    const phase = BREATHING_PHASES[STATE.breathing.phase];
+    
+    UI.breathTimerVal.textContent = `${STATE.breathing.timeRemaining}s`;
+    UI.breathInstruction.textContent = phase.desc;
+    
+    // Circle resizing transitions
+    UI.breathCircle.className = `breathing-circle ${phase.circleClass}`;
+    UI.breathGlow.className = `breathing-circle-glow ${phase.glowClass}`;
+    
+    // Sweep Web Audio pitch frequencies
+    if (STATE.audioInitialized && AUDIO.synths.breathing.active) {
+      AUDIO.sweepBreathingAudio(STATE.breathing.phase, 4);
+    }
+  };
+
+  const handleBreathingTick = () => {
+    STATE.breathing.timeRemaining--;
+    
+    if (STATE.breathing.timeRemaining <= 0) {
+      // Loop phase 0 to 3
+      STATE.breathing.phase = (STATE.breathing.phase + 1) % 4;
+      STATE.breathing.timeRemaining = 4;
+      updateBreathingVisual();
+    } else {
+      UI.breathTimerVal.textContent = `${STATE.breathing.timeRemaining}s`;
+    }
+  };
+
+  const startBreathingCoach = () => {
+    if (!STATE.audioInitialized) AUDIO.init();
+    
+    STATE.breathing.isRunning = true;
+    UI.btnBreathToggle.textContent = "Stop Coach";
+    UI.btnBreathToggle.classList.remove('btn-secondary');
+    UI.btnBreathToggle.classList.add('btn-primary');
+    
+    // Initialize Web Audio breathing synth
+    const synth = AUDIO.synths.breathing;
+    synth.active = true;
+    synth.gainNode.gain.setValueAtTime(0, AUDIO.ctx.currentTime);
+    
+    STATE.breathing.phase = 0;
+    STATE.breathing.timeRemaining = 4;
+    
+    updateBreathingVisual();
+    
+    STATE.breathing.intervalId = setInterval(handleBreathingTick, 1000);
+  };
+
+  const stopBreathingCoach = () => {
+    clearInterval(STATE.breathing.intervalId);
+    STATE.breathing.isRunning = false;
+    
+    UI.btnBreathToggle.textContent = "Start Coach";
+    UI.btnBreathToggle.classList.remove('btn-primary');
+    UI.btnBreathToggle.classList.add('btn-secondary');
+    
+    UI.breathCircle.className = "breathing-circle";
+    UI.breathGlow.className = "breathing-circle-glow";
+    UI.breathTimerVal.textContent = "Ready";
+    UI.breathInstruction.textContent = "Let your lungs expand with quiet focus.";
+    
+    // Mute Web Audio breathing synth
+    if (STATE.audioInitialized) {
+      const synth = AUDIO.synths.breathing;
+      synth.active = false;
+      synth.gainNode.gain.linearRampToValueAtTime(0, AUDIO.ctx.currentTime + 0.5);
+    }
+  };
+
+  UI.btnBreathToggle.addEventListener('click', () => {
+    if (STATE.breathing.isRunning) {
+      stopBreathingCoach();
+    } else {
+      startBreathingCoach();
+    }
+  });
+
+
+  // ==========================================================================
+  // 8. POMODORO FOCUS TIMER CHAMBER
   // ==========================================================================
   const TIMER_MODES = {
     focus: { time: 1500, label: "Keep focused" }, // 25 min
@@ -688,7 +1152,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const formatted = `${String(min).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
     UI.timerTime.textContent = formatted;
     
-    // Update SVG Stroke Progress Circle
     const strokeDash = 678.58; // circle length
     const percent = STATE.timer.remaining / STATE.timer.duration;
     UI.timerProgress.style.strokeDashoffset = strokeDash * (1 - percent);
@@ -701,13 +1164,16 @@ document.addEventListener('DOMContentLoaded', () => {
     UI.iconPlay.classList.remove('hidden');
     UI.iconPause.classList.add('hidden');
     
-    // Play beautiful Meditation Bowl Chime dynamically!
     AUDIO.playZenBowlChime();
     
-    // Display completion message
     UI.timerStatus.textContent = "Session Complete!";
     
-    // Create immediate alert modal
+    // LOG ANALYTICAL FOCUS STATS (If Focus session completed successfully)
+    if (STATE.timer.mode === 'focus') {
+      const durationMin = Math.round(STATE.timer.duration / 60);
+      logFocusSession(durationMin);
+    }
+    
     setTimeout(() => {
       alert(STATE.timer.mode === 'focus' ? "ZenFocus complete! Time for a breath." : "Break complete! Ready to return into focus?");
       resetTimer();
@@ -715,7 +1181,6 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   const toggleTimer = () => {
-    // If not running, start
     if (!STATE.timer.isRunning) {
       if (!STATE.audioInitialized) AUDIO.init();
       
@@ -733,7 +1198,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       }, 1000);
     } else {
-      // Pause timer
       clearInterval(STATE.timer.intervalId);
       STATE.timer.isRunning = false;
       UI.iconPlay.classList.remove('hidden');
@@ -755,9 +1219,8 @@ document.addEventListener('DOMContentLoaded', () => {
     updateTimerDisplay();
   };
 
-  // Timer tab clicking
   UI.modeTabs.forEach(tab => {
-    tab.addEventListener('click', (e) => {
+    tab.addEventListener('click', () => {
       UI.modeTabs.forEach(t => t.classList.remove('active'));
       tab.classList.add('active');
       
@@ -772,10 +1235,202 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
   // ==========================================================================
-  // 6. DYNAMIC KANBAN TASK DESK (WITH DRAG & DROP & LOCAL STORAGE)
+  // 9. NEW FOCUS FEATURE D: FOCUS INSIGHTS DESK & MILESTONES
   // ==========================================================================
   
-  // Render task counter stats
+  // Tab trigger pane switcher
+  UI.deskTabs.forEach(tab => {
+    tab.addEventListener('click', () => {
+      UI.deskTabs.forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      
+      const pane = tab.dataset.pane;
+      if (pane === 'tasks') {
+        UI.paneTasks.classList.remove('hidden');
+        UI.paneInsights.classList.add('hidden');
+        UI.taskStatsDisplay.classList.remove('hidden');
+      } else {
+        UI.paneTasks.classList.add('hidden');
+        UI.paneInsights.classList.remove('hidden');
+        UI.taskStatsDisplay.classList.add('hidden');
+        
+        // Re-render SVG chart on loading insights desk
+        renderFocusChart();
+      }
+    });
+  });
+
+  // Log completed focus minutes to LocalStorage database
+  const logFocusSession = (durationMin) => {
+    const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+    
+    const savedStats = localStorage.getItem('zenfocus_stats');
+    let data = { sessions: [] };
+    
+    if (savedStats) {
+      try {
+        data = JSON.parse(savedStats);
+      } catch(e) {
+        data = { sessions: [] };
+      }
+    }
+    
+    data.sessions.push({
+      timestamp: new Date().toISOString(),
+      duration: durationMin
+    });
+    
+    localStorage.setItem('zenfocus_stats', JSON.stringify(data));
+    checkMilestones(data.sessions.length);
+  };
+
+  // Aggregates focus minutes over the past 7 days (including today)
+  const getWeeklyAggregatedMinutes = (sessions) => {
+    const dailyMinutes = Array(7).fill(0);
+    const dateLabels = [];
+    
+    const now = new Date();
+    
+    // Get past 7 dates
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(now.getDate() - i);
+      const dateStr = d.toISOString().split('T')[0];
+      dateLabels.push({
+        dateStr: dateStr,
+        dayName: d.toLocaleDateString('en-US', { weekday: 'short' }) // Mon, Tue...
+      });
+    }
+
+    sessions.forEach(session => {
+      const sesDate = session.timestamp.split('T')[0];
+      const idx = dateLabels.findIndex(lbl => lbl.dateStr === sesDate);
+      if (idx !== -1) {
+        dailyMinutes[idx] += session.duration;
+      }
+    });
+
+    return { minutes: dailyMinutes, labels: dateLabels };
+  };
+
+  // Render Focus SVG Vertical Bar Graph dynamically
+  const renderFocusChart = () => {
+    const savedStats = localStorage.getItem('zenfocus_stats');
+    let sessions = [];
+    
+    if (savedStats) {
+      try {
+        sessions = JSON.parse(savedStats).sessions || [];
+      } catch(e) {
+        sessions = [];
+      }
+    }
+    
+    const aggregated = getWeeklyAggregatedMinutes(sessions);
+    
+    UI.chartBarsContainer.innerHTML = '';
+    UI.chartLabelsContainer.innerHTML = '';
+    
+    // SVG Dimensions: Y goes 135 (value 0) to 20 (value 60m)
+    // Formula: yPos = 135 - (value / 60) * 115
+    const barWidth = 32;
+    const spacing = 22;
+    const startX = 35;
+    
+    aggregated.minutes.forEach((val, idx) => {
+      const x = startX + idx * (barWidth + spacing);
+      // Cap focus minutes shown at 60 on graph (can go higher, but scales standard)
+      const graphVal = Math.min(val, 60);
+      const height = (graphVal / 60) * 115;
+      const y = 135 - height;
+      
+      // Draw Bar
+      const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+      rect.setAttribute('x', x);
+      rect.setAttribute('y', y);
+      rect.setAttribute('width', barWidth);
+      rect.setAttribute('height', Math.max(height, 2)); // min 2px height
+      rect.setAttribute('rx', 4);
+      rect.setAttribute('fill', 'url(#bar-grad)');
+      rect.setAttribute('style', `animation: barGrowth 0.8s cubic-bezier(0.25, 1, 0.5, 1) ${idx * 0.08}s both`);
+      
+      // Add tooltip/hover title
+      const title = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+      title.textContent = `${val} focus min`;
+      rect.appendChild(title);
+      
+      // Draw Labels
+      const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      text.setAttribute('x', x + barWidth/2);
+      text.setAttribute('y', 152);
+      text.setAttribute('text-anchor', 'middle');
+      text.setAttribute('fill', 'var(--color-text-muted)');
+      text.setAttribute('font-size', '9');
+      text.setAttribute('font-weight', '500');
+      text.textContent = aggregated.labels[idx].dayName;
+      
+      UI.chartBarsContainer.appendChild(rect);
+      UI.chartLabelsContainer.appendChild(text);
+    });
+
+    UI.milestonesSessionsCount.textContent = `${sessions.length} focus session${sessions.length !== 1 ? 's' : ''} completed`;
+    checkMilestones(sessions.length);
+  };
+
+  // Evaluate and unlock Milestone badges
+  const checkMilestones = (totalSessions) => {
+    const badges = [
+      { id: 'badge-initiate', req: 1 },
+      { id: 'badge-flow', req: 3 },
+      { id: 'badge-monk', req: 5 }
+    ];
+
+    badges.forEach(b => {
+      const el = document.getElementById(b.id);
+      if (el) {
+        if (totalSessions >= b.req) {
+          // If transitioning to unlocked, play animation
+          if (el.classList.contains('locked')) {
+            el.classList.remove('locked');
+            el.classList.add('unlocked');
+          }
+        } else {
+          el.classList.add('locked');
+          el.classList.remove('unlocked');
+        }
+      }
+    });
+  };
+
+  // ==========================================================================
+  // 10. NEW FOCUS FEATURE E: DYNAMIC MINIMALIST MONK MODE
+  // ==========================================================================
+  UI.btnMonkToggle.addEventListener('click', () => {
+    STATE.monkMode = !STATE.monkMode;
+    
+    if (STATE.monkMode) {
+      document.body.classList.add('monk-mode-active');
+      UI.btnMonkToggle.classList.add('btn-primary');
+      UI.btnMonkToggle.classList.remove('btn-secondary');
+      UI.btnMonkToggle.querySelector('span').textContent = "Exit Monk Mode";
+      
+      // Slow down background canvas particle speed (deep cosmic calm)
+      STATE.particleSpeedMultiplier = 0.15;
+    } else {
+      document.body.classList.remove('monk-mode-active');
+      UI.btnMonkToggle.classList.add('btn-secondary');
+      UI.btnMonkToggle.classList.remove('btn-primary');
+      UI.btnMonkToggle.querySelector('span').textContent = "Monk Mode";
+      
+      // Restore standard particle movement speed
+      STATE.particleSpeedMultiplier = 1.0;
+    }
+  });
+
+
+  // ==========================================================================
+  // 11. DYNAMIC KANBAN TASK DESK (WITH DRAG & DROP & LOCAL STORAGE)
+  // ==========================================================================
   const updateTaskCounts = () => {
     const counts = { todo: 0, progress: 0, completed: 0 };
     
@@ -790,7 +1445,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const total = STATE.tasks.length;
     UI.tasksCount.textContent = `${total} task${total !== 1 ? 's' : ''}`;
     
-    // Toggle empty message states
     ['todo', 'progress', 'completed'].forEach(col => {
       const container = document.getElementById(`list-${col}`);
       const emptyMsg = container.querySelector('.empty-msg') || createEmptyMsg(container);
@@ -812,23 +1466,19 @@ document.addEventListener('DOMContentLoaded', () => {
     return div;
   };
 
-  // Save tasks array to localStorage
   const saveTasks = () => {
     localStorage.setItem('zenfocus_tasks', JSON.stringify(STATE.tasks));
     updateTaskCounts();
   };
 
-  // Render a task item card in the DOM
   const renderTaskCard = (task) => {
     const card = document.createElement('div');
     card.className = `task-item ${task.status === 'completed' ? 'completed-task' : ''}`;
     card.id = `task-${task.id}`;
     card.draggable = true;
     
-    // Priority markup
     const priBadge = `<span class="priority-tag ${task.priority}">${task.priority}</span>`;
     
-    // Check icon or box based on completion status
     const actionIcons = task.status === 'completed' 
       ? `<button class="task-action-btn btn-check" title="Mark Active">
           <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="var(--color-low)" stroke-width="2.5">
@@ -857,7 +1507,6 @@ document.addEventListener('DOMContentLoaded', () => {
       </div>
     `;
 
-    // Drag listeners on card
     card.addEventListener('dragstart', (e) => {
       card.classList.add('dragging');
       e.dataTransfer.setData('text/plain', task.id);
@@ -867,7 +1516,6 @@ document.addEventListener('DOMContentLoaded', () => {
       card.classList.remove('dragging');
     });
 
-    // Check complete listener
     card.querySelector('.btn-check').addEventListener('click', () => {
       if (task.status === 'completed') {
         task.status = 'todo';
@@ -878,7 +1526,6 @@ document.addEventListener('DOMContentLoaded', () => {
       reloadTasksView();
     });
 
-    // Delete listener
     card.querySelector('.btn-delete').addEventListener('click', () => {
       card.style.animation = 'taskFadeOut 0.25s ease forwards';
       card.addEventListener('animationend', () => {
@@ -897,9 +1544,7 @@ document.addEventListener('DOMContentLoaded', () => {
     );
   };
 
-  // Re-render columns from state
   const reloadTasksView = () => {
-    // Clear list boxes except empty-msg divs
     ['todo', 'progress', 'completed'].forEach(col => {
       const container = document.getElementById(`list-${col}`);
       const cards = container.querySelectorAll('.task-item');
@@ -914,7 +1559,6 @@ document.addEventListener('DOMContentLoaded', () => {
     updateTaskCounts();
   };
 
-  // Drag and Drop Board Event handling
   const setupDragAndDrop = () => {
     UI.dragZones.forEach(zone => {
       const column = zone.closest('.kanban-column');
@@ -937,7 +1581,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const task = STATE.tasks.find(t => t.id === taskId);
         
         if (task && task.status !== targetStatus) {
-          // If moved to completed, update visually, or vice versa
           task.status = targetStatus;
           saveTasks();
           reloadTasksView();
@@ -946,7 +1589,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   };
 
-  // Form submit add task listener
   UI.taskForm.addEventListener('submit', (e) => {
     e.preventDefault();
     const text = UI.taskInput.value.trim();
@@ -970,7 +1612,6 @@ document.addEventListener('DOMContentLoaded', () => {
     UI.taskInput.focus();
   });
 
-  // Load Tasks from Storage
   const loadTasks = () => {
     const saved = localStorage.getItem('zenfocus_tasks');
     if (saved) {
@@ -980,7 +1621,6 @@ document.addEventListener('DOMContentLoaded', () => {
         STATE.tasks = [];
       }
     } else {
-      // Setup beautiful initial sample tasks
       STATE.tasks = [
         { id: 1, text: "Focus on writing clean CSS for this hub", priority: "high", status: "progress" },
         { id: 2, text: "Explore Web Audio synth controls", priority: "medium", status: "todo" },
@@ -992,12 +1632,11 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   // ==========================================================================
-  // 7. INSPIRATION 3D FLIP CARD LOGIC
+  // 12. INSPIRATION 3D FLIP CARD LOGIC
   // ==========================================================================
   const flipQuoteCard = () => {
     const isFlipped = UI.quoteCardInner.classList.toggle('flipped');
     
-    // Choose next random quote index
     let nextIdx;
     do {
       nextIdx = Math.floor(Math.random() * STATE.quotes.length);
@@ -1006,7 +1645,6 @@ document.addEventListener('DOMContentLoaded', () => {
     STATE.currentQuoteIndex = nextIdx;
     const quote = STATE.quotes[nextIdx];
 
-    // Load content onto the back face before completing the rotation
     setTimeout(() => {
       if (isFlipped) {
         UI.quoteTextBack.textContent = quote.text;
@@ -1018,7 +1656,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }, 300);
   };
 
-  // Setup click listeners for 3D flip card
   UI.btnNewQuote.addEventListener('click', (e) => {
     e.stopPropagation();
     flipQuoteCard();
@@ -1029,15 +1666,13 @@ document.addEventListener('DOMContentLoaded', () => {
     flipQuoteCard();
   });
 
-  // Flip when container body itself is clicked
   UI.quoteCardInner.addEventListener('click', flipQuoteCard);
 
 
   // ==========================================================================
-  // 8. AUTO-SAVE JOURNAL DESK LOGIC
+  // 13. AUTO-SAVE JOURNAL DESK LOGIC
   // ==========================================================================
   const setupJournal = () => {
-    // Load existing
     const savedJournal = localStorage.getItem('zenfocus_journal');
     if (savedJournal) {
       UI.journalInput.value = savedJournal;
@@ -1047,14 +1682,10 @@ document.addEventListener('DOMContentLoaded', () => {
     UI.journalInput.addEventListener('input', (e) => {
       clearTimeout(saveTimeout);
       
-      // Debounce saving to disk (wait for 800ms pause)
       saveTimeout = setTimeout(() => {
         localStorage.setItem('zenfocus_journal', e.target.value);
-        
-        // Briefly animate the "Auto-saved" indicator
         UI.journalSaved.classList.remove('hidden');
         
-        // Remove and hide after animation completes
         setTimeout(() => {
           UI.journalSaved.classList.add('hidden');
         }, 2500);
@@ -1063,13 +1694,28 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   // ==========================================================================
-  // 9. INITIALIZE SYSTEM
+  // 14. INITIALIZE SYSTEM
   // ==========================================================================
   initCanvasBackground();
   setupSoundscapes();
+  setupCustomMixes();
+  setupBinauralBeats();
   loadTasks();
   setupDragAndDrop();
   setupJournal();
   
-  console.log("ZenFocus successfully booted and loaded.");
+  // Set default unlocked states on badge grid
+  const savedStats = localStorage.getItem('zenfocus_stats');
+  if (savedStats) {
+    try {
+      const stats = JSON.parse(savedStats);
+      checkMilestones(stats.sessions.length || 0);
+    } catch(e) {
+      checkMilestones(0);
+    }
+  } else {
+    checkMilestones(0);
+  }
+  
+  console.log("ZenFocus upgraded features booted and loaded successfully.");
 });

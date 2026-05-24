@@ -6,10 +6,10 @@
 :root {
   /* Color Palette (HSL Tailored) */
   --bg-base: hsl(240, 24%, 6%);
-  --bg-surface: hsla(240, 20%, 11%, 0.6);
+  --bg-surface: hsla(240, 20%, 11%, 0.65);
   --bg-surface-active: hsla(240, 20%, 16%, 0.85);
   --border-light: hsla(240, 10%, 100%, 0.08);
-  --border-active: hsla(250, 85%, 65%, 0.3);
+  --border-active: hsla(250, 85%, 65%, 0.35);
   
   /* Accent Colors */
   --color-primary: hsl(250, 85%, 66%);
@@ -63,6 +63,7 @@ body {
   display: flex;
   justify-content: center;
   align-items: center;
+  transition: background-color 1.2s ease;
 }
 
 /* Custom Sleek Scrollbar */
@@ -96,6 +97,7 @@ body {
   z-index: 0;
   pointer-events: none;
   background: radial-gradient(circle at 50% 50%, hsl(240, 20%, 10%), var(--bg-base));
+  transition: filter 1.5s ease;
 }
 
 /* App Container Layout */
@@ -110,6 +112,7 @@ body {
   flex-direction: column;
   gap: 28px;
   animation: appFadeIn 1s cubic-bezier(0.16, 1, 0.3, 1) both;
+  transition: var(--transition-smooth);
 }
 
 @keyframes appFadeIn {
@@ -140,6 +143,7 @@ body {
   justify-content: space-between;
   align-items: center;
   padding: 0 10px;
+  transition: opacity 0.6s ease, transform 0.6s ease;
 }
 
 .logo-area {
@@ -192,6 +196,41 @@ body {
   text-transform: uppercase;
 }
 
+/* Header widgets and Monk button */
+.header-widgets {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+
+.btn-monk {
+  gap: 8px;
+  height: 40px;
+  padding: 0 16px;
+  font-size: 12px;
+  border-radius: 50px;
+  color: var(--color-text-muted);
+  border-color: var(--border-light);
+  box-shadow: none;
+}
+
+.btn-monk:hover {
+  color: #fff;
+  border-color: hsla(270, 75%, 65%, 0.4);
+  background: hsla(270, 75%, 65%, 0.1);
+  box-shadow: 0 0 12px hsla(270, 75%, 65%, 0.15);
+}
+
+.icon-lotus {
+  color: var(--color-text-dim);
+  transition: var(--transition-quick);
+}
+
+.btn-monk:hover .icon-lotus, .monk-mode-active .icon-lotus {
+  color: var(--color-secondary);
+  filter: drop-shadow(0 0 4px hsla(270, 75%, 65%, 0.5));
+}
+
 /* Clock Widget */
 .clock-widget {
   text-align: right;
@@ -217,16 +256,19 @@ body {
   grid-template-columns: 1.15fr 1.85fr;
   gap: 28px;
   flex: 1;
+  transition: var(--transition-smooth);
 }
 
 .workspace-panel-left {
   display: flex;
   flex-direction: column;
   gap: 28px;
+  transition: opacity 0.6s ease, transform 0.6s ease;
 }
 
 .workspace-panel-right {
   display: flex;
+  transition: opacity 0.6s ease, transform 0.6s ease;
 }
 
 /* Common Card Header styles */
@@ -268,6 +310,7 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
+  transition: var(--transition-smooth);
 }
 
 .timer-modes {
@@ -325,18 +368,12 @@ body {
 
 .timer-ring-progress {
   fill: none;
-  stroke: url(#timer-grad);
+  stroke: var(--color-primary);
   stroke-width: 6px;
   stroke-linecap: round;
   stroke-dasharray: 678.58; /* 2 * PI * r (r=108) */
   stroke-dashoffset: 0;
   transition: stroke-dashoffset 0.3s linear;
-}
-
-/* We will inject SVG gradient in the DOM during JS loading or style inline SVGs */
-/* For maximum CSS flexibility, let's use standard stroke mapping inside JS or hardcode standard HSL stroke */
-.timer-ring-progress {
-  stroke: var(--color-primary);
   filter: drop-shadow(0 0 6px var(--color-primary-glow));
 }
 
@@ -423,21 +460,78 @@ body {
   display: none !important;
 }
 
-/* Soundscape Panel */
+/* Presets Bar */
+.sound-presets-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 18px;
+  background: hsla(240, 20%, 8%, 0.2);
+  padding: 8px 14px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--border-radius-md);
+}
+
+.presets-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--color-text-dim);
+  letter-spacing: 0.5px;
+}
+
+.presets-list {
+  display: flex;
+  gap: 8px;
+  flex: 1;
+}
+
+.btn-preset {
+  background: hsla(240, 20%, 12%, 0.6);
+  border: 1px solid var(--border-light);
+  color: var(--color-text-muted);
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 50px;
+  cursor: pointer;
+  transition: var(--transition-quick);
+}
+
+.btn-preset:hover, .btn-preset.active {
+  color: #fff;
+  border-color: var(--color-primary);
+  background: hsla(250, 85%, 66%, 0.1);
+}
+
+.text-preset {
+  margin-left: auto;
+  border-color: transparent;
+  background: transparent;
+  color: var(--color-high);
+}
+
+.text-preset:hover {
+  background: var(--color-high-bg);
+  border-color: hsla(12, 85%, 58%, 0.3);
+  color: #fff;
+}
+
+/* Soundscapes Grid */
 .sound-grid {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 14px;
 }
 
 .sound-item {
   background: hsla(240, 20%, 8%, 0.25);
   border: 1px solid var(--border-light);
   border-radius: var(--border-radius-md);
-  padding: 16px;
+  padding: 14px 16px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
   transition: var(--transition-smooth);
 }
 
@@ -471,7 +565,7 @@ body {
 }
 
 .sound-toggle-btn span {
-  font-size: 14px;
+  font-size: 13.5px;
   font-weight: 600;
   letter-spacing: -0.2px;
 }
@@ -533,7 +627,300 @@ body {
 }
 
 .sound-item.active .sound-slider {
-  background: linear-gradient(to right, var(--color-primary) 0%, hsla(250, 85%, 66%, 0.2) 0%);
+  background: hsla(250, 85%, 66%, 0.2);
+}
+
+/* Custom Mixes Slots */
+.custom-presets-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 18px;
+  background: hsla(240, 20%, 8%, 0.2);
+  padding: 8px 14px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--border-radius-md);
+}
+
+.custom-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--color-text-dim);
+  letter-spacing: 0.5px;
+}
+
+.custom-presets-row {
+  display: flex;
+  gap: 6px;
+  flex: 1;
+}
+
+.btn-custom {
+  background: hsla(240, 20%, 12%, 0.6);
+  border: 1px solid var(--border-light);
+  color: var(--color-text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 8px;
+  border-radius: var(--border-radius-sm);
+  cursor: pointer;
+  transition: var(--transition-quick);
+}
+
+.btn-custom:hover, .btn-custom.active {
+  color: #fff;
+  border-color: var(--color-secondary);
+  background: hsla(270, 75%, 65%, 0.1);
+}
+
+.btn-save {
+  margin-left: auto;
+  background: transparent;
+  border: 1px dashed hsla(250, 85%, 66%, 0.3);
+  color: var(--color-text-muted);
+  font-size: 10.5px;
+  font-weight: 600;
+  padding: 4px 8px;
+  border-radius: var(--border-radius-sm);
+  cursor: pointer;
+  transition: var(--transition-quick);
+}
+
+.btn-save:hover {
+  border-color: var(--color-primary);
+  color: #fff;
+  background: hsla(250, 85%, 66%, 0.08);
+}
+
+/* Binaural Waves Panel */
+.binaural-container {
+  margin-top: 18px;
+  padding: 16px;
+  background: hsla(240, 20%, 8%, 0.3);
+  border: 1px solid var(--border-light);
+  border-radius: var(--border-radius-md);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.binaural-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.binaural-title-box h4 {
+  font-family: var(--font-display);
+  font-size: 14px;
+  font-weight: 600;
+  color: #fff;
+}
+
+.binaural-badge {
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--color-text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  display: block;
+  margin-top: 1px;
+}
+
+.binaural-tabs {
+  display: flex;
+  background: hsla(240, 20%, 6%, 0.5);
+  border: 1px solid var(--border-light);
+  border-radius: 50px;
+  padding: 3px;
+}
+
+.wave-tab {
+  background: transparent;
+  border: none;
+  color: var(--color-text-muted);
+  font-size: 10.5px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 50px;
+  cursor: pointer;
+  transition: var(--transition-quick);
+}
+
+.wave-tab:hover {
+  color: #fff;
+}
+
+.wave-tab.active {
+  background: var(--bg-surface-active);
+  color: var(--color-secondary);
+  border: 1px solid var(--border-light);
+}
+
+.no-border-padding {
+  border: none !important;
+  padding: 0 !important;
+  background: none !important;
+}
+
+/* Breathing Coach Widget */
+.breathing-coach-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  padding: 10px 0;
+}
+
+.breathing-visual-container {
+  position: relative;
+  width: 140px;
+  height: 140px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.breathing-circle-glow {
+  position: absolute;
+  width: 70px;
+  height: 70px;
+  border-radius: 50%;
+  background: hsla(270, 75%, 65%, 0.1);
+  filter: blur(10px);
+  transform: scale(1);
+  transition: transform 4s linear, background-color 2s ease;
+}
+
+.breathing-circle {
+  position: absolute;
+  width: 70px;
+  height: 70px;
+  border-radius: 50%;
+  border: 2px solid hsla(250, 85%, 66%, 0.3);
+  background: hsla(250, 85%, 66%, 0.08);
+  transform: scale(1);
+  transition: transform 4s linear, background-color 2s ease, border-color 2s ease;
+  box-shadow: 0 0 20px hsla(250, 85%, 66%, 0.1);
+}
+
+.breathing-timer {
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 700;
+  color: #fff;
+  z-index: 2;
+  transition: var(--transition-quick);
+}
+
+.breathing-instruction {
+  font-size: 13px;
+  color: var(--color-text-muted);
+  font-weight: 500;
+  text-align: center;
+  height: 20px;
+  transition: var(--transition-quick);
+}
+
+.breathing-controls {
+  display: flex;
+  justify-content: center;
+  margin-top: 14px;
+}
+
+.breathing-controls .btn {
+  height: 38px;
+  padding: 0 22px;
+  border-radius: 50px;
+  font-size: 12px;
+}
+
+/* Breathing state animations triggered in JS */
+.breath-inhale {
+  transform: scale(2.0);
+  background-color: hsla(250, 85%, 66%, 0.22);
+  border-color: hsla(250, 85%, 66%, 0.6);
+  box-shadow: 0 0 35px hsla(250, 85%, 66%, 0.45);
+}
+
+.breath-exhale {
+  transform: scale(1.0);
+  background-color: hsla(270, 75%, 65%, 0.08);
+  border-color: hsla(270, 75%, 65%, 0.3);
+  box-shadow: 0 0 20px hsla(270, 75%, 65%, 0.1);
+}
+
+.breath-glow-inhale {
+  transform: scale(2.6);
+  background-color: hsla(250, 85%, 66%, 0.22);
+}
+
+.breath-glow-exhale {
+  transform: scale(1.0);
+  background-color: hsla(270, 75%, 65%, 0.08);
+}
+
+/* Kanban & Insights Desk Tabs */
+.flex-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.desk-tabs {
+  display: flex;
+  background: hsla(240, 20%, 8%, 0.4);
+  border: 1px solid var(--border-light);
+  border-radius: 50px;
+  padding: 3px;
+}
+
+.desk-tab {
+  background: transparent;
+  border: none;
+  color: var(--color-text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 14px;
+  border-radius: 50px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: var(--transition-quick);
+}
+
+.desk-tab svg {
+  color: var(--color-text-dim);
+  transition: var(--transition-quick);
+}
+
+.desk-tab:hover {
+  color: #fff;
+}
+
+.desk-tab.active {
+  background: var(--bg-surface-active);
+  color: #fff;
+  border: 1px solid var(--border-light);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.desk-tab.active svg {
+  color: var(--color-primary);
+}
+
+/* Pane switching */
+.pane-content {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+.pane-content.hidden {
+  display: none !important;
 }
 
 /* Kanban Desk Area */
@@ -767,6 +1154,10 @@ body {
   color: #fff;
 }
 
+.task-action-btn.btn-check:hover {
+  color: #fff;
+}
+
 .task-action-btn.btn-delete:hover {
   color: var(--color-high);
 }
@@ -786,11 +1177,131 @@ body {
   padding: 20px 0;
 }
 
+/* Pane 2: Insights Desk Analytics */
+.insights-container {
+  display: grid;
+  grid-template-columns: 1.1fr 0.9fr;
+  gap: 24px;
+  padding: 10px 0;
+  flex: 1;
+}
+
+.insights-chart-card, .insights-milestones-card {
+  background: hsla(240, 20%, 8%, 0.25);
+  border: 1px solid var(--border-light);
+  border-radius: var(--border-radius-md);
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+}
+
+.insights-card-header {
+  margin-bottom: 16px;
+}
+
+.insights-card-header h4 {
+  font-family: var(--font-display);
+  font-size: 14.5px;
+  font-weight: 600;
+  color: #fff;
+}
+
+.insights-subtitle {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  margin-top: 1px;
+  display: block;
+}
+
+.chart-container {
+  flex: 1;
+  display: flex;
+  align-items: flex-end;
+}
+
+.focus-chart-svg {
+  display: block;
+  width: 100%;
+}
+
+/* Milestones badge list */
+.milestones-badge-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  flex: 1;
+}
+
+.milestone-badge-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: hsla(240, 20%, 6%, 0.4);
+  border: 1px solid var(--border-light);
+  border-radius: var(--border-radius-md);
+  padding: 10px 14px;
+  transition: var(--transition-smooth);
+}
+
+.milestone-badge-item.locked {
+  opacity: 0.35;
+  filter: grayscale(1);
+}
+
+.milestone-badge-item.unlocked {
+  opacity: 1;
+  filter: none;
+  border-color: var(--border-active);
+  box-shadow: 0 0 10px rgba(168, 85, 247, 0.1);
+  animation: badgeUnlockGlow 1.5s ease;
+}
+
+@keyframes badgeUnlockGlow {
+  0% { transform: scale(1); box-shadow: 0 0 0 0 hsla(250, 85%, 66%, 0.4); }
+  50% { transform: scale(1.03); box-shadow: 0 0 20px 4px hsla(250, 85%, 66%, 0.35); }
+  100% { transform: scale(1); box-shadow: 0 0 10px rgba(168, 85, 247, 0.1); }
+}
+
+.badge-emblem {
+  font-size: 24px;
+  background: hsla(240, 20%, 12%, 0.8);
+  border-radius: var(--border-radius-sm);
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border-light);
+}
+
+.milestone-badge-item.unlocked .badge-emblem {
+  background: hsla(250, 85%, 66%, 0.1);
+  border-color: hsla(250, 85%, 66%, 0.25);
+}
+
+.badge-text-box h5 {
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 600;
+  color: #fff;
+}
+
+.badge-text-box p {
+  font-size: 10.5px;
+  color: var(--color-text-dim);
+  margin-top: 1px;
+}
+
+.milestone-badge-item.unlocked .badge-text-box p {
+  color: var(--color-text-muted);
+}
+
 /* Bottom Shelf Layout */
 .app-shelf {
   display: grid;
   grid-template-columns: 1.15fr 1.85fr;
   gap: 28px;
+  transition: opacity 0.6s ease, transform 0.6s ease;
 }
 
 /* 3D Flipping Inspiration Card Container */
@@ -919,6 +1430,7 @@ body {
   display: flex;
   flex-direction: column;
   height: 180px;
+  transition: var(--transition-smooth);
 }
 
 .journal-card textarea {
@@ -1029,6 +1541,60 @@ body {
   font-size: 14px;
 }
 
+/* ==========================================================================
+   10. MONK MODE VIEWPORT SYSTEM STATE
+   ========================================================================== */
+
+/* Active Monk Mode classes */
+.monk-mode-active {
+  background-color: hsl(240, 30%, 3%);
+}
+
+.monk-mode-active #canvas-bg {
+  filter: brightness(0.4) saturate(0.6);
+}
+
+.monk-mode-active .app-header {
+  transform: translateY(-5px);
+}
+
+.monk-mode-active .logo-area,
+.monk-mode-active .clock-widget,
+.monk-mode-active .sound-card,
+.monk-mode-active .breathing-card,
+.monk-mode-active .workspace-panel-right,
+.monk-mode-active .inspiration-card-container {
+  opacity: 0;
+  pointer-events: none;
+  transform: scale(0.96);
+  visibility: hidden;
+}
+
+.monk-mode-active .app-main {
+  grid-template-columns: 1fr;
+  max-width: 460px;
+  margin: 0 auto;
+}
+
+.monk-mode-active .pomodoro-card {
+  transform: translateY(20px);
+  border-color: hsla(270, 75%, 65%, 0.25);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6), 0 0 30px hsla(270, 75%, 65%, 0.08);
+  background: hsla(240, 20%, 8%, 0.85);
+}
+
+.monk-mode-active .app-shelf {
+  grid-template-columns: 1fr;
+  max-width: 460px;
+  margin: 0 auto;
+}
+
+.monk-mode-active .journal-card {
+  transform: translateY(-20px);
+  border-color: hsla(270, 75%, 65%, 0.2);
+  background: hsla(240, 20%, 8%, 0.8);
+}
+
 /* Responsive Adapting CSS (Flexbox/Grid overrides) */
 @media (max-width: 1024px) {
   .app-container {
@@ -1043,6 +1609,11 @@ body {
 
   .kanban-board {
     grid-template-columns: 1fr;
+  }
+
+  .insights-container {
+    grid-template-columns: 1fr;
+    gap: 24px;
   }
   
   .app-shelf {
