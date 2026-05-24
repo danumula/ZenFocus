@@ -19,7 +19,6 @@
 </head>
 <body>
 
-
   <!-- Dynamic Interactive Particle Canvas Background -->
   <canvas id="canvas-bg"></canvas>
 
@@ -90,6 +89,7 @@
           </div>
 
           <div class="timer-display-container">
+            <canvas id="timer-visualizer" width="240" height="240"></canvas>
             <svg class="timer-ring" width="240" height="240">
               <circle class="timer-ring-bg" cx="120" cy="120" r="108" />
               <circle class="timer-ring-progress" id="timer-progress" cx="120" cy="120" r="108" />
@@ -113,6 +113,18 @@
                 <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67" />
               </svg>
             </button>
+          </div>
+
+          <!-- Chime Tone Selector -->
+          <div class="chime-selector-box">
+            <label for="chime-select">Focus Chime:</label>
+            <div class="select-wrapper no-height-min">
+              <select id="chime-select" aria-label="Chime Sound Selector">
+                <option value="bowl">Tibetan Singing Bowl</option>
+                <option value="crystal" disabled>Crystal Bowl (Unlocks at 3 Focus sessions) 🔒</option>
+                <option value="chimes" disabled>Zen Wind Chimes (Unlocks at 5 Focus sessions) 🔒</option>
+              </select>
+            </div>
           </div>
         </div>
 
@@ -234,6 +246,28 @@
             <div class="sound-item no-border-padding" id="binaural-volume-row">
               <div class="slider-wrapper">
                 <input type="range" id="binaural-slider" class="sound-slider" min="0" max="100" value="30" aria-label="Binaural Beats Volume">
+                <div class="slider-progress" style="width: 30%"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Solfeggio Resonance Row -->
+          <div class="binaural-container solfeggio-margin">
+            <div class="binaural-header">
+              <div class="binaural-title-box">
+                <h4>Solfeggio Resonance</h4>
+                <span class="binaural-badge">Tremolo Healing</span>
+              </div>
+              <div class="binaural-tabs">
+                <button class="solfeggio-tab active" data-freq="off">Off</button>
+                <button class="solfeggio-tab" data-freq="432" title="432Hz: Cosmic Harmony & Healing Focus">432Hz</button>
+                <button class="solfeggio-tab" data-freq="528" title="528Hz: Cognitive Transformation & Creativity">528Hz</button>
+                <button class="solfeggio-tab" data-freq="396" title="396Hz: Deep Grounding & Calming Core">396Hz</button>
+              </div>
+            </div>
+            <div class="sound-item no-border-padding" id="solfeggio-volume-row">
+              <div class="slider-wrapper">
+                <input type="range" id="solfeggio-slider" class="sound-slider" min="0" max="100" value="30" aria-label="Solfeggio Volume">
                 <div class="slider-progress" style="width: 30%"></div>
               </div>
             </div>
@@ -361,7 +395,7 @@
               <div class="insights-chart-card">
                 <div class="insights-card-header">
                   <h4>Focus Energy Chart (Weekly)</h4>
-                  <span class="insights-subtitle">Focus minutes tracked locally</span>
+                  <span class="insights-subtitle" id="aggregated-hours-tracked">0h 00m tracked focus time</span>
                 </div>
                 <div class="chart-container">
                   <svg class="focus-chart-svg" viewBox="0 0 460 160" width="100%" height="160">
@@ -395,7 +429,7 @@
               <!-- Milestones Badge Grid Section -->
               <div class="insights-milestones-card">
                 <div class="insights-card-header">
-                  <h4>Zen Focus Milestones</h4>
+                  <h4>Focus Milestones</h4>
                   <span class="insights-subtitle" id="milestones-sessions-count">0 focus sessions completed</span>
                 </div>
                 
@@ -431,6 +465,28 @@
                 </div>
               </div>
 
+            </div>
+
+            <!-- Gratitude contribution log calendar grid -->
+            <div class="insights-gratitude-card">
+              <div class="insights-card-header">
+                <h4>Gratitude Calendar (Past 12 Weeks)</h4>
+                <span class="insights-subtitle">Days you wrote reflections glow. Click squares to read past entries.</span>
+              </div>
+              
+              <div class="gratitude-grid-wrapper">
+                <div class="gratitude-grid" id="gratitude-grid">
+                  <!-- Populated dynamically in JS (84 grid-squares) -->
+                </div>
+              </div>
+
+              <div class="gratitude-popover hidden" id="gratitude-popover">
+                <div class="popover-header">
+                  <span id="popover-date">May 24, 2026</span>
+                  <button id="btn-close-popover" class="btn-close" aria-label="Close reflection popup">&times;</button>
+                </div>
+                <div class="popover-body" id="popover-content">Loading your quiet reflection...</div>
+              </div>
             </div>
           </div>
         </div>

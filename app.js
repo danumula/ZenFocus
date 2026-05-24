@@ -1,5 +1,5 @@
 /* ==========================================================================
-   ZenFocus — Premium Ambient Logic & Procedural Audio Engine
+   ZenFocus — Premium Ambient Logic & Procedural Audio Engine (Ultimate Upgrades)
    ========================================================================== */
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -23,6 +23,7 @@ document.addEventListener('DOMContentLoaded', () => {
     iconPlay: document.getElementById('icon-play'),
     iconPause: document.getElementById('icon-pause'),
     modeTabs: document.querySelectorAll('.mode-tab'),
+    chimeSelect: document.getElementById('chime-select'),
     
     // Sound & Mixer Elements
     soundItems: document.querySelectorAll('.sound-item'),
@@ -34,6 +35,10 @@ document.addEventListener('DOMContentLoaded', () => {
     // Binaural Controls
     binauralTabs: document.querySelectorAll('.wave-tab'),
     binauralSlider: document.getElementById('binaural-slider'),
+    
+    // Solfeggio Controls
+    solfeggioTabs: document.querySelectorAll('.solfeggio-tab'),
+    solfeggioSlider: document.getElementById('solfeggio-slider'),
     
     // Zen Breathing Coach Elements
     breathCircle: document.getElementById('breath-circle'),
@@ -65,6 +70,14 @@ document.addEventListener('DOMContentLoaded', () => {
     chartBarsContainer: document.getElementById('focus-chart-bars'),
     chartLabelsContainer: document.getElementById('focus-chart-labels'),
     milestonesSessionsCount: document.getElementById('milestones-sessions-count'),
+    aggregatedHoursTracked: document.getElementById('aggregated-hours-tracked'),
+    
+    // Gratitude Grid Section
+    gratitudeGrid: document.getElementById('gratitude-grid'),
+    gratitudePopover: document.getElementById('gratitude-popover'),
+    popoverDate: document.getElementById('popover-date'),
+    popoverContent: document.getElementById('popover-content'),
+    btnClosePopover: document.getElementById('btn-close-popover'),
     
     // Inspiration shelf
     quoteCardInner: document.getElementById('quote-card-inner'),
@@ -86,6 +99,8 @@ document.addEventListener('DOMContentLoaded', () => {
     monkMode: false,
     selectedMixSlot: null,
     particleSpeedMultiplier: 1.0,
+    activeTaskTimerId: null, // Track currently running card stopwatch
+    taskIntervalId: null,   // Card timer interval handle
     timer: {
       intervalId: null,
       duration: 1500, // Default 25 minutes
@@ -101,7 +116,11 @@ document.addEventListener('DOMContentLoaded', () => {
       timeRemaining: 4
     },
     binaural: {
-      type: 'off', // off, alpha, theta
+      type: 'off',
+      volume: 30
+    },
+    solfeggio: {
+      freq: 'off',
       volume: 30
     },
     tasks: [],
@@ -151,15 +170,12 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       
       update() {
-        // Particles run extremely slow in Monk Mode
         this.x += this.speedX * STATE.particleSpeedMultiplier;
         this.y += this.speedY * STATE.particleSpeedMultiplier;
         
-        // Bounce on borders
         if (this.x < 0 || this.x > canvas.width) this.speedX *= -1;
         if (this.y < 0 || this.y > canvas.height) this.speedY *= -1;
         
-        // Mouse reaction (subtle attraction, disabled or slowed in Monk Mode)
         if (STATE.mouse.x !== null && STATE.mouse.y !== null) {
           const dx = STATE.mouse.x - this.x;
           const dy = STATE.mouse.y - this.y;
@@ -178,13 +194,12 @@ document.addEventListener('DOMContentLoaded', () => {
         ctx.beginPath();
         ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
         
-        // Color shifts depending on Monk Mode
         if (STATE.monkMode) {
-          ctx.fillStyle = `rgba(139, 92, 246, ${this.alpha * 0.7})`; // Soft violet
+          ctx.fillStyle = `rgba(139, 92, 246, ${this.alpha * 0.7})`;
           ctx.shadowBlur = this.size;
           ctx.shadowColor = 'rgba(139, 92, 246, 0.2)';
         } else {
-          ctx.fillStyle = `rgba(168, 85, 247, ${this.alpha})`; // Premium purple
+          ctx.fillStyle = `rgba(168, 85, 247, ${this.alpha})`;
           ctx.shadowBlur = this.size * 2;
           ctx.shadowColor = 'rgba(168, 85, 247, 0.4)';
         }
@@ -204,13 +219,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const animate = () => {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       
-      // Draw a soft glowing gradient at mouse position (only if not in Monk Mode)
       if (STATE.mouse.x !== null && STATE.mouse.y !== null && !STATE.monkMode) {
         const glowGrad = ctx.createRadialGradient(
           STATE.mouse.x, STATE.mouse.y, 10,
           STATE.mouse.x, STATE.mouse.y, 250
         );
-        glowGrad.addColorStop(0, 'rgba(99, 102, 241, 0.05)'); // indigo glow
+        glowGrad.addColorStop(0, 'rgba(99, 102, 241, 0.05)');
         glowGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
         ctx.fillStyle = glowGrad;
         ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -257,16 +271,17 @@ document.addEventListener('DOMContentLoaded', () => {
   const AUDIO = {
     ctx: null,
     masterGain: null,
+    analyser: null,
     synths: {
       rain: null,
       waves: null,
       birds: null,
       drone: null,
       binaural: null,
+      solfeggio: null,
       breathing: null
     },
     
-    // Creates a noise buffer filled with white noise values
     createNoiseBuffer() {
       const bufferSize = 2 * this.ctx.sampleRate;
       const noiseBuffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
@@ -291,10 +306,16 @@ document.addEventListener('DOMContentLoaded', () => {
         limiter.attack.setValueAtTime(0.005, this.ctx.currentTime);
         limiter.release.setValueAtTime(0.05, this.ctx.currentTime);
         
+        // Dynamic Radial Analyser Node
+        this.analyser = this.ctx.createAnalyser();
+        this.analyser.fftSize = 128; // 64 frequency bands
+        
         this.masterGain = this.ctx.createGain();
         this.masterGain.gain.setValueAtTime(0.8, this.ctx.currentTime);
         
-        this.masterGain.connect(limiter);
+        // Connect routing: synths -> masterGain -> analyser -> limiter -> destination
+        this.masterGain.connect(this.analyser);
+        this.analyser.connect(limiter);
         limiter.connect(this.ctx.destination);
         
         // Build individual synth units
@@ -302,13 +323,15 @@ document.addEventListener('DOMContentLoaded', () => {
         this.buildWavesSynth();
         this.buildBirdsSynth();
         this.buildDroneSynth();
-        
-        // Build new dynamic premium synthesizers
         this.buildBinauralSynth();
+        this.buildSolfeggioSynth();
         this.buildBreathingSynth();
         
+        // Run Real-Time Canvas Audio Visualizer loop
+        initAudioVisualizerLoop();
+        
         STATE.audioInitialized = true;
-        console.log("Web Audio Context and procedurals initialized successfully.");
+        console.log("Web Audio Context, analyser and procedurals initialized successfully.");
       } catch(err) {
         console.error("Failed to initialize audio: ", err);
       }
@@ -325,19 +348,17 @@ document.addEventListener('DOMContentLoaded', () => {
       filter.frequency.setValueAtTime(800, this.ctx.currentTime);
       
       const gain = this.ctx.createGain();
-      gain.gain.setValueAtTime(0, this.ctx.currentTime); // Start silent
+      gain.gain.setValueAtTime(0, this.ctx.currentTime);
       
       noise.connect(filter);
       filter.connect(gain);
       gain.connect(this.masterGain);
       noise.start();
       
-      // Crackle generator for rain drops (high pass pops)
       let crackleInterval = null;
       const playCrackle = () => {
         if (gain.gain.value === 0) return;
         
-        // Occasional drops
         const dropletCount = Math.floor(Math.random() * 4) + 1;
         for (let i = 0; i < dropletCount; i++) {
           const osc = this.ctx.createOscillator();
@@ -345,13 +366,11 @@ document.addEventListener('DOMContentLoaded', () => {
           const dropGain = this.ctx.createGain();
           
           osc.type = 'sine';
-          // Filter drops
           dropFilter.type = 'bandpass';
           dropFilter.frequency.setValueAtTime(Math.random() * 3000 + 1500, this.ctx.currentTime);
           dropFilter.Q.setValueAtTime(10, this.ctx.currentTime);
           
           const now = this.ctx.currentTime;
-          // Impulsive click envelope
           dropGain.gain.setValueAtTime(0, now);
           dropGain.gain.linearRampToValueAtTime(0.04 * gain.gain.value, now + 0.002);
           dropGain.gain.exponentialRampToValueAtTime(0.0001, now + Math.random() * 0.03 + 0.01);
@@ -390,18 +409,16 @@ document.addEventListener('DOMContentLoaded', () => {
       const gain = this.ctx.createGain();
       gain.gain.setValueAtTime(0, this.ctx.currentTime);
       
-      // Sweep filter cutoff up and down slowly using LFO
       const lfo = this.ctx.createOscillator();
-      lfo.frequency.setValueAtTime(0.08, this.ctx.currentTime); // 12 seconds per wave period
+      lfo.frequency.setValueAtTime(0.08, this.ctx.currentTime);
       
       const lfoGain = this.ctx.createGain();
-      lfoGain.gain.setValueAtTime(250, this.ctx.currentTime); // Depth of sweep
+      lfoGain.gain.setValueAtTime(250, this.ctx.currentTime);
       
       lfo.connect(lfoGain);
-      lfoGain.connect(filter.frequency); // Connect LFO to center frequency (250Hz - 750Hz sweep range)
+      lfoGain.connect(filter.frequency);
       filter.frequency.setValueAtTime(450, this.ctx.currentTime);
       
-      // Dynamic sweep for volume as waves rise/fall
       const volLfo = this.ctx.createOscillator();
       volLfo.frequency.setValueAtTime(0.08, this.ctx.currentTime);
       
@@ -411,13 +428,11 @@ document.addEventListener('DOMContentLoaded', () => {
       const waveMasterGain = this.ctx.createGain();
       waveMasterGain.gain.setValueAtTime(0.5, this.ctx.currentTime);
       
-      // Connect
       noise.connect(filter);
       filter.connect(waveMasterGain);
       waveMasterGain.connect(gain);
       gain.connect(this.masterGain);
       
-      // Modulate waves volume slightly via LFO
       volLfo.connect(volLfoGain);
       volLfoGain.connect(waveMasterGain.gain);
       
@@ -432,7 +447,7 @@ document.addEventListener('DOMContentLoaded', () => {
       };
     },
     
-    // C. Forest Birds Synthesizer (Random Tweets)
+    // C. Forest Birds Synthesizer
     buildBirdsSynth() {
       const gain = this.ctx.createGain();
       gain.gain.setValueAtTime(0, this.ctx.currentTime);
@@ -449,7 +464,6 @@ document.addEventListener('DOMContentLoaded', () => {
         tweetGain.connect(gain);
         osc.connect(tweetGain);
         
-        // Random bird patterns (chirps)
         const mode = Math.floor(Math.random() * 3);
         if (mode === 0) {
           osc.frequency.setValueAtTime(3200, now);
@@ -523,7 +537,7 @@ document.addEventListener('DOMContentLoaded', () => {
       };
     },
     
-    // D. Focus Drone (Detuned Analog Triangles)
+    // D. Focus Drone (Low Triangle detuning)
     buildDroneSynth() {
       const oscA = this.ctx.createOscillator();
       const oscB = this.ctx.createOscillator();
@@ -531,8 +545,8 @@ document.addEventListener('DOMContentLoaded', () => {
       oscA.type = 'triangle';
       oscB.type = 'triangle';
       
-      oscA.frequency.setValueAtTime(55, this.ctx.currentTime); // A1 note
-      oscB.frequency.setValueAtTime(55.4, this.ctx.currentTime); // detuned by 0.4Hz
+      oscA.frequency.setValueAtTime(55, this.ctx.currentTime);
+      oscB.frequency.setValueAtTime(55.4, this.ctx.currentTime);
       
       const filter = this.ctx.createBiquadFilter();
       filter.type = 'lowpass';
@@ -542,10 +556,10 @@ document.addEventListener('DOMContentLoaded', () => {
       gain.gain.setValueAtTime(0, this.ctx.currentTime);
       
       const lfo = this.ctx.createOscillator();
-      lfo.frequency.setValueAtTime(0.05, this.ctx.currentTime); // 20s cycle
+      lfo.frequency.setValueAtTime(0.05, this.ctx.currentTime);
       
       const lfoGain = this.ctx.createGain();
-      lfoGain.gain.setValueAtTime(0.08, this.ctx.currentTime); // subtle volume weave
+      lfoGain.gain.setValueAtTime(0.08, this.ctx.currentTime);
       
       const droneGain = this.ctx.createGain();
       droneGain.gain.setValueAtTime(0.18, this.ctx.currentTime);
@@ -570,7 +584,7 @@ document.addEventListener('DOMContentLoaded', () => {
       };
     },
     
-    // E. Premium Binaural Beats Synthesizer (With isolated Stereo Panning)
+    // E. Headphones Binaural Beats Synth (Stereo pan detuning)
     buildBinauralSynth() {
       const oscL = this.ctx.createOscillator();
       const oscR = this.ctx.createOscillator();
@@ -578,15 +592,14 @@ document.addEventListener('DOMContentLoaded', () => {
       oscL.type = 'sine';
       oscR.type = 'sine';
       
-      // Standard deep meditation frequencies (detuned slightly)
-      oscL.frequency.setValueAtTime(150, this.ctx.currentTime); // Left: 150Hz
-      oscR.frequency.setValueAtTime(150, this.ctx.currentTime); // Right starts at 150Hz (Off)
+      oscL.frequency.setValueAtTime(150, this.ctx.currentTime);
+      oscR.frequency.setValueAtTime(150, this.ctx.currentTime);
       
       const panL = this.ctx.createStereoPanner();
       const panR = this.ctx.createStereoPanner();
       
-      panL.pan.setValueAtTime(-1, this.ctx.currentTime); // 100% Left Speaker
-      panR.pan.setValueAtTime(1, this.ctx.currentTime);  // 100% Right Speaker
+      panL.pan.setValueAtTime(-1, this.ctx.currentTime);
+      panR.pan.setValueAtTime(1, this.ctx.currentTime);
       
       const gainL = this.ctx.createGain();
       const gainR = this.ctx.createGain();
@@ -594,9 +607,8 @@ document.addEventListener('DOMContentLoaded', () => {
       gainR.gain.setValueAtTime(0.5, this.ctx.currentTime);
       
       const binMasterGain = this.ctx.createGain();
-      binMasterGain.gain.setValueAtTime(0, this.ctx.currentTime); // Start muted
+      binMasterGain.gain.setValueAtTime(0, this.ctx.currentTime);
       
-      // Connections
       oscL.connect(gainL);
       gainL.connect(panL);
       panL.connect(binMasterGain);
@@ -617,19 +629,63 @@ document.addEventListener('DOMContentLoaded', () => {
       };
     },
     
-    // F. Zen Breathing Coach Ambient Synthesizer (Vocal Sweep Simulator)
+    // F. Procedural Solfeggio Resonance Synth (Warm Tremolo Sine)
+    buildSolfeggioSynth() {
+      const oscA = this.ctx.createOscillator();
+      const oscB = this.ctx.createOscillator();
+      
+      oscA.type = 'sine';
+      oscB.type = 'sine';
+      
+      oscA.frequency.setValueAtTime(432, this.ctx.currentTime);
+      oscB.frequency.setValueAtTime(432.3, this.ctx.currentTime); // detuned by 0.3Hz for rich tremolo warmth
+      
+      const gainNode = this.ctx.createGain();
+      gainNode.gain.setValueAtTime(0, this.ctx.currentTime); // start silent
+      
+      // Tremolo LFO modulator
+      const lfo = this.ctx.createOscillator();
+      lfo.frequency.setValueAtTime(0.15, this.ctx.currentTime); // slow breathing
+      
+      const lfoGain = this.ctx.createGain();
+      lfoGain.gain.setValueAtTime(0.1, this.ctx.currentTime); // modulate volume by 10%
+      
+      const droneGain = this.ctx.createGain();
+      droneGain.gain.setValueAtTime(0.2, this.ctx.currentTime);
+      
+      oscA.connect(droneGain);
+      oscB.connect(droneGain);
+      droneGain.connect(gainNode);
+      gainNode.connect(this.masterGain);
+      
+      lfo.connect(lfoGain);
+      lfoGain.connect(droneGain.gain);
+      
+      oscA.start();
+      oscB.start();
+      lfo.start();
+      
+      this.synths.solfeggio = {
+        oscA: oscA,
+        oscB: oscB,
+        gainNode: gainNode,
+        active: false
+      };
+    },
+    
+    // G. Breathing Coach sweep hum
     buildBreathingSynth() {
       const osc = this.ctx.createOscillator();
       osc.type = 'triangle';
-      osc.frequency.setValueAtTime(150, this.ctx.currentTime); // starting hum pitch
+      osc.frequency.setValueAtTime(150, this.ctx.currentTime);
       
       const filter = this.ctx.createBiquadFilter();
       filter.type = 'lowpass';
-      filter.frequency.setValueAtTime(200, this.ctx.currentTime); // low starting lowpass
+      filter.frequency.setValueAtTime(200, this.ctx.currentTime);
       filter.Q.setValueAtTime(2.0, this.ctx.currentTime);
       
       const gain = this.ctx.createGain();
-      gain.gain.setValueAtTime(0, this.ctx.currentTime); // start silent
+      gain.gain.setValueAtTime(0, this.ctx.currentTime);
       
       osc.connect(filter);
       filter.connect(gain);
@@ -645,11 +701,9 @@ document.addEventListener('DOMContentLoaded', () => {
       };
     },
     
-    // Synthesize a beautiful Metallic Meditation Bowl chime dynamically!
-    playZenBowlChime() {
-      if (!this.ctx) return;
+    // FM synthesis chimes triggers
+    playTibetanBowl() {
       const now = this.ctx.currentTime;
-      
       const frequencies = [220, 442, 663, 885, 1105, 1330];
       const gains = [0.25, 0.15, 0.12, 0.08, 0.05, 0.02];
       
@@ -669,22 +723,91 @@ document.addEventListener('DOMContentLoaded', () => {
       frequencies.forEach((freq, idx) => {
         const osc = this.ctx.createOscillator();
         const oscGain = this.ctx.createGain();
-        
         osc.type = 'sine';
         osc.frequency.setValueAtTime(freq, now);
-        
         oscGain.gain.setValueAtTime(gains[idx], now);
         osc.frequency.linearRampToValueAtTime(freq + (Math.random() * 2 - 1), now + 4.0);
-        
         osc.connect(oscGain);
         oscGain.connect(chimeGain);
-        
         osc.start(now);
         osc.stop(now + 6.0);
       });
     },
     
-    // Toggle active soundscapes
+    playCrystalBowl() {
+      const now = this.ctx.currentTime;
+      // High pure crystalline frequencies (F4 base + harmonics)
+      const frequencies = [349.23, 698.46, 1047.69, 1396.92];
+      const gains = [0.35, 0.18, 0.08, 0.03];
+      
+      const chimeGain = this.ctx.createGain();
+      chimeGain.gain.setValueAtTime(0, now);
+      chimeGain.gain.linearRampToValueAtTime(0.35, now + 0.05);
+      chimeGain.gain.exponentialRampToValueAtTime(0.0001, now + 8.5); // long pure decay
+      
+      chimeGain.connect(this.masterGain);
+      
+      frequencies.forEach((freq, idx) => {
+        const osc = this.ctx.createOscillator();
+        const oscGain = this.ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, now);
+        oscGain.gain.setValueAtTime(gains[idx], now);
+        osc.connect(oscGain);
+        oscGain.connect(chimeGain);
+        osc.start(now);
+        osc.stop(now + 9.0);
+      });
+    },
+    
+    playZenWindChimes() {
+      const now = this.ctx.currentTime;
+      // FM Bell synthesis pitches mapping random wind blowing strikes
+      const chimePitches = [880, 987.77, 1046.50, 1174.66, 1318.51, 1396.91, 1567.98, 1760];
+      const count = 15; // 15 scattered chimes over 3.5 seconds
+      
+      for(let i = 0; i < count; i++) {
+        const strikeTime = now + (i * 0.18) + (Math.random() * 0.12);
+        const pitch = chimePitches[Math.floor(Math.random() * chimePitches.length)];
+        
+        // FM Modulator/Carrier setup
+        const carrier = this.ctx.createOscillator();
+        const modulator = this.ctx.createOscillator();
+        const modGain = this.ctx.createGain();
+        
+        carrier.type = 'sine';
+        modulator.type = 'sine';
+        
+        carrier.frequency.setValueAtTime(pitch, strikeTime);
+        modulator.frequency.setValueAtTime(pitch * 1.414, strikeTime); // inharmonic chime ratio
+        
+        const bellGain = this.ctx.createGain();
+        bellGain.gain.setValueAtTime(0, strikeTime);
+        bellGain.gain.linearRampToValueAtTime(0.08 + Math.random() * 0.05, strikeTime + 0.005);
+        bellGain.gain.exponentialRampToValueAtTime(0.0001, strikeTime + Math.random() * 1.2 + 0.6); // varying decay
+        
+        // Panning to scatter them in stereo
+        const pan = this.ctx.createStereoPanner();
+        pan.pan.setValueAtTime(Math.random() * 1.6 - 0.8, strikeTime);
+        
+        modGain.gain.setValueAtTime(500, strikeTime);
+        modGain.gain.exponentialRampToValueAtTime(0.0001, strikeTime + 0.5);
+        
+        modulator.connect(modGain);
+        modGain.connect(carrier.frequency);
+        
+        carrier.connect(bellGain);
+        bellGain.connect(pan);
+        pan.connect(this.masterGain);
+        
+        modulator.start(strikeTime);
+        carrier.start(strikeTime);
+        
+        modulator.stop(strikeTime + 2.0);
+        carrier.stop(strikeTime + 2.0);
+      }
+    },
+    
     toggleSound(name, sliderValue) {
       if (!this.ctx) this.init();
       if (this.ctx.state === 'suspended') {
@@ -708,7 +831,6 @@ document.addEventListener('DOMContentLoaded', () => {
       return synth.active;
     },
     
-    // Update volume level dynamically
     setVolume(name, value) {
       if (!this.ctx) return;
       const synth = this.synths[name];
@@ -722,7 +844,6 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     },
     
-    // Toggle Binaural waves
     setBinauralWave(waveType, volumePercent) {
       if (!this.ctx) this.init();
       const synth = this.synths.binaural;
@@ -735,22 +856,41 @@ document.addEventListener('DOMContentLoaded', () => {
         synth.gainNode.gain.linearRampToValueAtTime(0, now + 0.4);
       } else {
         synth.active = true;
-        
-        // Detuning frequency sets the beat inside the brain
         if (waveType === 'alpha') {
-          synth.oscR.frequency.linearRampToValueAtTime(160, now + 0.2); // Left 150, Right 160 = 10Hz Alpha Focus
+          synth.oscR.frequency.linearRampToValueAtTime(160, now + 0.2);
         } else if (waveType === 'theta') {
-          synth.oscR.frequency.linearRampToValueAtTime(155, now + 0.2); // Left 150, Right 155 = 5Hz Theta Zen
+          synth.oscR.frequency.linearRampToValueAtTime(155, now + 0.2);
         }
         
-        // Map volume (soothing, max Binaural volume is capped lower for safety)
         const vol = volumePercent / 100 * 0.22;
         synth.gainNode.gain.setValueAtTime(synth.gainNode.gain.value, now);
         synth.gainNode.gain.linearRampToValueAtTime(vol, now + 0.5);
       }
     },
     
-    // Smooth Breathing Audio Sweep mapping (Box Breathing Ambient Synth)
+    setSolfeggioFrequency(freqType, volumePercent) {
+      if (!this.ctx) this.init();
+      const synth = this.synths.solfeggio;
+      if (!synth) return;
+      
+      const now = this.ctx.currentTime;
+      
+      if (freqType === 'off') {
+        synth.active = false;
+        synth.gainNode.gain.linearRampToValueAtTime(0, now + 0.4);
+      } else {
+        synth.active = true;
+        const targetFreq = parseFloat(freqType);
+        
+        synth.oscA.frequency.linearRampToValueAtTime(targetFreq, now + 0.25);
+        synth.oscB.frequency.linearRampToValueAtTime(targetFreq + 0.3, now + 0.25);
+        
+        const vol = volumePercent / 100 * 0.2;
+        synth.gainNode.gain.setValueAtTime(synth.gainNode.gain.value, now);
+        synth.gainNode.gain.linearRampToValueAtTime(vol, now + 0.5);
+      }
+    },
+    
     sweepBreathingAudio(phase, durationSec) {
       const synth = this.synths.breathing;
       if (!synth || !synth.active) return;
@@ -758,25 +898,74 @@ document.addEventListener('DOMContentLoaded', () => {
       const now = this.ctx.currentTime;
       
       if (phase === 0) {
-        // Inhale - sweep pitch UP, open filter, ramp volume up
         synth.gainNode.gain.linearRampToValueAtTime(0.2, now + durationSec);
         synth.oscNode.frequency.linearRampToValueAtTime(250, now + durationSec);
         synth.filterNode.frequency.linearRampToValueAtTime(650, now + durationSec);
       } else if (phase === 1) {
-        // Hold full - keep steady at high focus humming
         synth.gainNode.gain.linearRampToValueAtTime(0.2, now + durationSec);
         synth.oscNode.frequency.setValueAtTime(250, now);
         synth.filterNode.frequency.setValueAtTime(650, now);
       } else if (phase === 2) {
-        // Exhale - sweep pitch DOWN, close filter, ramp volume down
         synth.gainNode.gain.linearRampToValueAtTime(0.04, now + durationSec);
         synth.oscNode.frequency.linearRampToValueAtTime(140, now + durationSec);
         synth.filterNode.frequency.linearRampToValueAtTime(180, now + durationSec);
       } else if (phase === 3) {
-        // Hold empty - silent, completely quiet base
         synth.gainNode.gain.linearRampToValueAtTime(0.0, now + durationSec);
       }
     }
+  };
+
+  // Setup circular visualizer rendering loop
+  const initAudioVisualizerLoop = () => {
+    const canvas = document.getElementById('timer-visualizer');
+    const ctx = canvas.getContext('2d');
+    
+    const bufferLength = AUDIO.analyser.frequencyBinCount;
+    const dataArray = new Uint8Array(bufferLength);
+    
+    const draw = () => {
+      requestAnimationFrame(draw);
+      
+      ctx.clearRect(0, 0, 240, 240);
+      
+      if (!STATE.audioInitialized || STATE.monkMode) return; // silent inside Monk Mode to avoid distraction
+      
+      AUDIO.analyser.getByteFrequencyData(dataArray);
+      
+      const radius = 105;
+      const centerX = 120;
+      const centerY = 120;
+      const barCount = 48; // clean resolution spacing
+      const angleStep = (Math.PI * 2) / barCount;
+      
+      for(let i = 0; i < barCount; i++) {
+        // Average bands if needed, or index directly
+        const valIdx = Math.floor((i / barCount) * bufferLength);
+        const amp = dataArray[valIdx] / 255;
+        const length = amp * 22; // max 22px radial bars
+        
+        if (length <= 1) continue;
+        
+        const angle = i * angleStep;
+        
+        const x1 = centerX + Math.cos(angle) * radius;
+        const y1 = centerY + Math.sin(angle) * radius;
+        const x2 = centerX + Math.cos(angle) * (radius + length);
+        const y2 = centerY + Math.sin(angle) * (radius + length);
+        
+        ctx.beginPath();
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(x2, y2);
+        
+        // Premium purple-indigo gradient visual effect
+        ctx.strokeStyle = `hsla(${250 + amp * 30}, 85%, 66%, ${0.1 + amp * 0.55})`;
+        ctx.lineWidth = 2.5;
+        ctx.lineCap = 'round';
+        ctx.stroke();
+      }
+    };
+    
+    draw();
   };
 
   // Soundscape slider and toggle handlers
@@ -807,8 +996,6 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
           item.classList.remove('active');
         }
-        
-        // Remove preset highlight if soundscape ratios are customized
         clearActivePresetHighlight();
       });
       
@@ -835,12 +1022,10 @@ document.addEventListener('DOMContentLoaded', () => {
     UI.presetButtons.forEach(btn => btn.classList.remove('active'));
   };
 
-  // Space Entry handler (Browser Consent policy)
   UI.btnEnter.addEventListener('click', () => {
     UI.overlay.classList.add('hidden');
     AUDIO.init();
     
-    // Set a cozy Focus Drone backing hum automatically
     setTimeout(() => {
       const droneItem = document.getElementById('sound-drone');
       const slider = droneItem.querySelector('.sound-slider');
@@ -852,7 +1037,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // ==========================================================================
-  // 5. NEW FOCUS FEATURE A: SOUNDSCAPE PRESETS & SAVERS
+  // 5. MIXER PRESETS & CUSTOM SAVERS
   // ==========================================================================
   const PRESET_RATIOS = {
     storm: { rain: 85, waves: 0, birds: 0, drone: 25 },
@@ -874,7 +1059,6 @@ document.addEventListener('DOMContentLoaded', () => {
       slider.value = targetVal;
       progress.style.width = `${targetVal}%`;
       
-      // Determine if synth should be turned on or off
       const synth = AUDIO.synths[id];
       const now = AUDIO.ctx.currentTime;
       
@@ -890,7 +1074,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   };
 
-  // Setup Presets Buttons click listeners
   UI.presetButtons.forEach(btn => {
     btn.addEventListener('click', () => {
       UI.presetButtons.forEach(b => b.classList.remove('active'));
@@ -899,7 +1082,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  // Mute All Button handler
   UI.btnMuteAll.addEventListener('click', () => {
     if (!STATE.audioInitialized) return;
     clearActivePresetHighlight();
@@ -919,16 +1101,13 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  // Custom Mix slots local storage integration
   const setupCustomMixes = () => {
-    // Select Slot
     UI.mixSlots.forEach(slot => {
       slot.addEventListener('click', () => {
         UI.mixSlots.forEach(s => s.classList.remove('active'));
         slot.classList.add('active');
         STATE.selectedMixSlot = slot.dataset.slot;
         
-        // Attempt load custom mix
         const mix = localStorage.getItem(`zenfocus_mix_${STATE.selectedMixSlot}`);
         if (mix) {
           try {
@@ -941,7 +1120,6 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     });
 
-    // Save Mix
     UI.btnSaveMix.addEventListener('click', () => {
       if (!STATE.selectedMixSlot) {
         alert("Please click and select Slot 1, 2, or 3 first!");
@@ -954,9 +1132,12 @@ document.addEventListener('DOMContentLoaded', () => {
         mixData[id] = parseInt(item.querySelector('.sound-slider').value);
       });
       
-      // Save binaural settings too!
       mixData['binauralType'] = STATE.binaural.type;
       mixData['binauralVolume'] = parseInt(UI.binauralSlider.value);
+      
+      // Save Solfeggio settings too!
+      mixData['solfeggioFreq'] = STATE.solfeggio.freq;
+      mixData['solfeggioVolume'] = parseInt(UI.solfeggioSlider.value);
       
       localStorage.setItem(`zenfocus_mix_${STATE.selectedMixSlot}`, JSON.stringify(mixData));
       
@@ -971,7 +1152,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const loadSoundscapeMix = (data) => {
     if (!STATE.audioInitialized) AUDIO.init();
     
-    // Load standard synths
     UI.soundItems.forEach(item => {
       const id = item.id.replace('sound-', '');
       if (data.hasOwnProperty(id)) {
@@ -997,7 +1177,6 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
 
-    // Load Binaural Wave mix settings
     if (data.hasOwnProperty('binauralType')) {
       STATE.binaural.type = data.binauralType;
       UI.binauralSlider.value = data.binauralVolume;
@@ -1012,42 +1191,78 @@ document.addEventListener('DOMContentLoaded', () => {
       });
       AUDIO.setBinauralWave(STATE.binaural.type, data.binauralVolume);
     }
+
+    // Load Solfeggio settings if saved
+    if (data.hasOwnProperty('solfeggioFreq')) {
+      STATE.solfeggio.freq = data.solfeggioFreq;
+      UI.solfeggioSlider.value = data.solfeggioVolume;
+      document.querySelector('#solfeggio-volume-row .slider-progress').style.width = `${data.solfeggioVolume}%`;
+      
+      UI.solfeggioTabs.forEach(tab => {
+        if (tab.dataset.freq === STATE.solfeggio.freq) {
+          tab.classList.add('active');
+        } else {
+          tab.classList.remove('active');
+        }
+      });
+      AUDIO.setSolfeggioFrequency(STATE.solfeggio.freq, data.solfeggioVolume);
+    }
   };
 
   // ==========================================================================
-  // 6. NEW FOCUS FEATURE B: BINAURAL BEATS LOGIC
+  // 6. BINAURAL BEATS LOGIC
   // ==========================================================================
   const setupBinauralBeats = () => {
-    // Slider Change
     UI.binauralSlider.addEventListener('input', (e) => {
       const val = e.target.value;
       document.querySelector('#binaural-volume-row .slider-progress').style.width = `${val}%`;
       STATE.binaural.volume = val;
-      
       if (STATE.binaural.type !== 'off') {
         AUDIO.setBinauralWave(STATE.binaural.type, val);
       }
     });
 
-    // Wave Tabs trigger
     UI.binauralTabs.forEach(tab => {
       tab.addEventListener('click', () => {
         UI.binauralTabs.forEach(t => t.classList.remove('active'));
         tab.classList.add('active');
-        
         STATE.binaural.type = tab.dataset.wave;
-        
         if (STATE.binaural.type !== 'off') {
           if (!STATE.audioInitialized) AUDIO.init();
         }
-        
         AUDIO.setBinauralWave(STATE.binaural.type, UI.binauralSlider.value);
       });
     });
   };
 
   // ==========================================================================
-  // 7. NEW FOCUS FEATURE C: ZEN BOX BREATHING COACH
+  // 7. SOLFEGGIO MEDITATION FREQS
+  // ==========================================================================
+  const setupSolfeggioResonance = () => {
+    UI.solfeggioSlider.addEventListener('input', (e) => {
+      const val = e.target.value;
+      document.querySelector('#solfeggio-volume-row .slider-progress').style.width = `${val}%`;
+      STATE.solfeggio.volume = val;
+      if (STATE.solfeggio.freq !== 'off') {
+        AUDIO.setSolfeggioFrequency(STATE.solfeggio.freq, val);
+      }
+    });
+
+    UI.solfeggioTabs.forEach(tab => {
+      tab.addEventListener('click', () => {
+        UI.solfeggioTabs.forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        STATE.solfeggio.freq = tab.dataset.freq;
+        if (STATE.solfeggio.freq !== 'off') {
+          if (!STATE.audioInitialized) AUDIO.init();
+        }
+        AUDIO.setSolfeggioFrequency(STATE.solfeggio.freq, UI.solfeggioSlider.value);
+      });
+    });
+  };
+
+  // ==========================================================================
+  // 8. ZEN BOX BREATHING COACH
   // ==========================================================================
   const BREATHING_PHASES = [
     { title: "Inhale", desc: "Draw in slow, peaceful air.", circleClass: "breath-inhale", glowClass: "breath-glow-inhale" },
@@ -1058,15 +1273,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const updateBreathingVisual = () => {
     const phase = BREATHING_PHASES[STATE.breathing.phase];
-    
     UI.breathTimerVal.textContent = `${STATE.breathing.timeRemaining}s`;
     UI.breathInstruction.textContent = phase.desc;
     
-    // Circle resizing transitions
     UI.breathCircle.className = `breathing-circle ${phase.circleClass}`;
     UI.breathGlow.className = `breathing-circle-glow ${phase.glowClass}`;
     
-    // Sweep Web Audio pitch frequencies
     if (STATE.audioInitialized && AUDIO.synths.breathing.active) {
       AUDIO.sweepBreathingAudio(STATE.breathing.phase, 4);
     }
@@ -1074,9 +1286,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const handleBreathingTick = () => {
     STATE.breathing.timeRemaining--;
-    
     if (STATE.breathing.timeRemaining <= 0) {
-      // Loop phase 0 to 3
       STATE.breathing.phase = (STATE.breathing.phase + 1) % 4;
       STATE.breathing.timeRemaining = 4;
       updateBreathingVisual();
@@ -1087,29 +1297,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const startBreathingCoach = () => {
     if (!STATE.audioInitialized) AUDIO.init();
-    
     STATE.breathing.isRunning = true;
     UI.btnBreathToggle.textContent = "Stop Coach";
     UI.btnBreathToggle.classList.remove('btn-secondary');
     UI.btnBreathToggle.classList.add('btn-primary');
     
-    // Initialize Web Audio breathing synth
     const synth = AUDIO.synths.breathing;
     synth.active = true;
     synth.gainNode.gain.setValueAtTime(0, AUDIO.ctx.currentTime);
     
     STATE.breathing.phase = 0;
     STATE.breathing.timeRemaining = 4;
-    
     updateBreathingVisual();
-    
     STATE.breathing.intervalId = setInterval(handleBreathingTick, 1000);
   };
 
   const stopBreathingCoach = () => {
     clearInterval(STATE.breathing.intervalId);
     STATE.breathing.isRunning = false;
-    
     UI.btnBreathToggle.textContent = "Start Coach";
     UI.btnBreathToggle.classList.remove('btn-primary');
     UI.btnBreathToggle.classList.add('btn-secondary');
@@ -1119,7 +1324,6 @@ document.addEventListener('DOMContentLoaded', () => {
     UI.breathTimerVal.textContent = "Ready";
     UI.breathInstruction.textContent = "Let your lungs expand with quiet focus.";
     
-    // Mute Web Audio breathing synth
     if (STATE.audioInitialized) {
       const synth = AUDIO.synths.breathing;
       synth.active = false;
@@ -1135,24 +1339,16 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-
   // ==========================================================================
-  // 8. POMODORO FOCUS TIMER CHAMBER
+  // 9. POMODORO FOCUS TIMER CHAMBER
   // ==========================================================================
-  const TIMER_MODES = {
-    focus: { time: 1500, label: "Keep focused" }, // 25 min
-    short: { time: 300, label: "Take a breath" }, // 5 min
-    long: { time: 900, label: "Deep unwind" }     // 15 min
-  };
-
   const updateTimerDisplay = () => {
     const min = Math.floor(STATE.timer.remaining / 60);
     const sec = STATE.timer.remaining % 60;
-    
     const formatted = `${String(min).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
     UI.timerTime.textContent = formatted;
     
-    const strokeDash = 678.58; // circle length
+    const strokeDash = 678.58;
     const percent = STATE.timer.remaining / STATE.timer.duration;
     UI.timerProgress.style.strokeDashoffset = strokeDash * (1 - percent);
   };
@@ -1164,11 +1360,18 @@ document.addEventListener('DOMContentLoaded', () => {
     UI.iconPlay.classList.remove('hidden');
     UI.iconPause.classList.add('hidden');
     
-    AUDIO.playZenBowlChime();
+    // Choose dynamic FM synthesized Chime Sound
+    const chimeSelected = UI.chimeSelect.value;
+    if (chimeSelected === 'crystal') {
+      AUDIO.playCrystalBowl();
+    } else if (chimeSelected === 'chimes') {
+      AUDIO.playZenWindChimes();
+    } else {
+      AUDIO.playTibetanBowl();
+    }
     
     UI.timerStatus.textContent = "Session Complete!";
     
-    // LOG ANALYTICAL FOCUS STATS (If Focus session completed successfully)
     if (STATE.timer.mode === 'focus') {
       const durationMin = Math.round(STATE.timer.duration / 60);
       logFocusSession(durationMin);
@@ -1183,7 +1386,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const toggleTimer = () => {
     if (!STATE.timer.isRunning) {
       if (!STATE.audioInitialized) AUDIO.init();
-      
       STATE.timer.isRunning = true;
       UI.iconPlay.classList.add('hidden');
       UI.iconPause.classList.remove('hidden');
@@ -1209,7 +1411,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const resetTimer = () => {
     clearInterval(STATE.timer.intervalId);
     STATE.timer.isRunning = false;
-    
     STATE.timer.duration = TIMER_MODES[STATE.timer.mode].time;
     STATE.timer.remaining = STATE.timer.duration;
     
@@ -1223,7 +1424,6 @@ document.addEventListener('DOMContentLoaded', () => {
     tab.addEventListener('click', () => {
       UI.modeTabs.forEach(t => t.classList.remove('active'));
       tab.classList.add('active');
-      
       STATE.timer.mode = tab.dataset.mode;
       resetTimer();
     });
@@ -1231,14 +1431,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
   UI.btnTimerToggle.addEventListener('click', toggleTimer);
   UI.btnTimerReset.addEventListener('click', resetTimer);
-  resetTimer();
-
 
   // ==========================================================================
-  // 9. NEW FOCUS FEATURE D: FOCUS INSIGHTS DESK & MILESTONES
+  // 10. FOCUS INSIGHTS DESK & MILESTONES (STAT SAVERS)
   // ==========================================================================
-  
-  // Tab trigger pane switcher
   UI.deskTabs.forEach(tab => {
     tab.addEventListener('click', () => {
       UI.deskTabs.forEach(t => t.classList.remove('active'));
@@ -1254,16 +1450,13 @@ document.addEventListener('DOMContentLoaded', () => {
         UI.paneInsights.classList.remove('hidden');
         UI.taskStatsDisplay.classList.add('hidden');
         
-        // Re-render SVG chart on loading insights desk
         renderFocusChart();
+        renderGratitudeGrid();
       }
     });
   });
 
-  // Log completed focus minutes to LocalStorage database
   const logFocusSession = (durationMin) => {
-    const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
-    
     const savedStats = localStorage.getItem('zenfocus_stats');
     let data = { sessions: [] };
     
@@ -1284,21 +1477,18 @@ document.addEventListener('DOMContentLoaded', () => {
     checkMilestones(data.sessions.length);
   };
 
-  // Aggregates focus minutes over the past 7 days (including today)
   const getWeeklyAggregatedMinutes = (sessions) => {
     const dailyMinutes = Array(7).fill(0);
     const dateLabels = [];
-    
     const now = new Date();
     
-    // Get past 7 dates
     for (let i = 6; i >= 0; i--) {
       const d = new Date();
       d.setDate(now.getDate() - i);
       const dateStr = d.toISOString().split('T')[0];
       dateLabels.push({
         dateStr: dateStr,
-        dayName: d.toLocaleDateString('en-US', { weekday: 'short' }) // Mon, Tue...
+        dayName: d.toLocaleDateString('en-US', { weekday: 'short' })
       });
     }
 
@@ -1313,7 +1503,6 @@ document.addEventListener('DOMContentLoaded', () => {
     return { minutes: dailyMinutes, labels: dateLabels };
   };
 
-  // Render Focus SVG Vertical Bar Graph dynamically
   const renderFocusChart = () => {
     const savedStats = localStorage.getItem('zenfocus_stats');
     let sessions = [];
@@ -1331,35 +1520,29 @@ document.addEventListener('DOMContentLoaded', () => {
     UI.chartBarsContainer.innerHTML = '';
     UI.chartLabelsContainer.innerHTML = '';
     
-    // SVG Dimensions: Y goes 135 (value 0) to 20 (value 60m)
-    // Formula: yPos = 135 - (value / 60) * 115
     const barWidth = 32;
     const spacing = 22;
     const startX = 35;
     
     aggregated.minutes.forEach((val, idx) => {
       const x = startX + idx * (barWidth + spacing);
-      // Cap focus minutes shown at 60 on graph (can go higher, but scales standard)
       const graphVal = Math.min(val, 60);
       const height = (graphVal / 60) * 115;
       const y = 135 - height;
       
-      // Draw Bar
       const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
       rect.setAttribute('x', x);
       rect.setAttribute('y', y);
       rect.setAttribute('width', barWidth);
-      rect.setAttribute('height', Math.max(height, 2)); // min 2px height
+      rect.setAttribute('height', Math.max(height, 2));
       rect.setAttribute('rx', 4);
       rect.setAttribute('fill', 'url(#bar-grad)');
       rect.setAttribute('style', `animation: barGrowth 0.8s cubic-bezier(0.25, 1, 0.5, 1) ${idx * 0.08}s both`);
       
-      // Add tooltip/hover title
       const title = document.createElementNS('http://www.w3.org/2000/svg', 'title');
       title.textContent = `${val} focus min`;
       rect.appendChild(title);
       
-      // Draw Labels
       const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
       text.setAttribute('x', x + barWidth/2);
       text.setAttribute('y', 152);
@@ -1373,26 +1556,49 @@ document.addEventListener('DOMContentLoaded', () => {
       UI.chartLabelsContainer.appendChild(text);
     });
 
+    // Calculate total aggregated hours completed
+    let totalSecs = 0;
+    STATE.tasks.forEach(t => {
+      if (t.status === 'completed') {
+        totalSecs += (t.elapsedSeconds || 0);
+      }
+    });
+    
+    const completedFocusMinutesFromPomodoro = sessions.reduce((acc, s) => acc + s.duration, 0);
+    const totalMinutesCombined = completedFocusMinutesFromPomodoro + Math.floor(totalSecs / 60);
+    
+    const hrs = Math.floor(totalMinutesCombined / 60);
+    const mins = totalMinutesCombined % 60;
+    UI.aggregatedHoursTracked.textContent = `${hrs}h ${String(mins).padStart(2, '0')}m tracked focus time`;
+
     UI.milestonesSessionsCount.textContent = `${sessions.length} focus session${sessions.length !== 1 ? 's' : ''} completed`;
     checkMilestones(sessions.length);
   };
 
-  // Evaluate and unlock Milestone badges
   const checkMilestones = (totalSessions) => {
     const badges = [
       { id: 'badge-initiate', req: 1 },
-      { id: 'badge-flow', req: 3 },
-      { id: 'badge-monk', req: 5 }
+      { id: 'badge-flow', req: 3, selectOptionId: 'crystal' },
+      { id: 'badge-monk', req: 5, selectOptionId: 'chimes' }
     ];
 
     badges.forEach(b => {
       const el = document.getElementById(b.id);
       if (el) {
         if (totalSessions >= b.req) {
-          // If transitioning to unlocked, play animation
           if (el.classList.contains('locked')) {
             el.classList.remove('locked');
             el.classList.add('unlocked');
+          }
+          // Unlock Chime Library option dropdown
+          if (b.selectOptionId) {
+            const opt = UI.chimeSelect.querySelector(`option[value="${b.selectOptionId}"]`);
+            if (opt) {
+              opt.removeAttribute('disabled');
+              // Remove emoji lock
+              if (b.selectOptionId === 'crystal') opt.textContent = "Crystal Singing Bowl";
+              if (b.selectOptionId === 'chimes') opt.textContent = "Zen Wind Chimes";
+            }
           }
         } else {
           el.classList.add('locked');
@@ -1403,7 +1609,166 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   // ==========================================================================
-  // 10. NEW FOCUS FEATURE E: DYNAMIC MINIMALIST MONK MODE
+  // 11. DYNAMIC KANBAN STOPWATCHES
+  // ==========================================================================
+  const toggleTaskStopwatch = (taskId) => {
+    const task = STATE.tasks.find(t => t.id === taskId);
+    if (!task) return;
+    
+    const card = document.getElementById(`task-${taskId}`);
+    const playBtn = card.querySelector('.btn-card-timer');
+    const timerTag = card.querySelector('.card-timer-tag span');
+    
+    if (STATE.activeTaskTimerId === taskId) {
+      // Pause current
+      clearInterval(STATE.taskIntervalId);
+      STATE.activeTaskTimerId = null;
+      STATE.taskIntervalId = null;
+      
+      card.classList.remove('timer-active');
+      playBtn.querySelector('svg').innerHTML = '<polygon points="5 3 19 12 5 21 5 3" />'; // play icon
+      
+      saveTasks();
+    } else {
+      // Pause any other actively running card stopwatch first
+      if (STATE.activeTaskTimerId !== null) {
+        const otherId = STATE.activeTaskTimerId;
+        const otherCard = document.getElementById(`task-${otherId}`);
+        if (otherCard) {
+          otherCard.classList.remove('timer-active');
+          const otherPlay = otherCard.querySelector('.btn-card-timer');
+          if (otherPlay) otherPlay.querySelector('svg').innerHTML = '<polygon points="5 3 19 12 5 21 5 3" />';
+        }
+        clearInterval(STATE.taskIntervalId);
+      }
+      
+      // Start this stopwatch
+      if (!STATE.audioInitialized) AUDIO.init();
+      
+      STATE.activeTaskTimerId = taskId;
+      card.classList.add('timer-active');
+      playBtn.querySelector('svg').innerHTML = '<rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/>'; // pause icon
+      
+      STATE.taskIntervalId = setInterval(() => {
+        task.elapsedSeconds = (task.elapsedSeconds || 0) + 1;
+        timerTag.textContent = formatStopwatchTime(task.elapsedSeconds);
+        
+        // Auto-save state hourly/incrementally
+        if (task.elapsedSeconds % 5 === 0) {
+          saveTasks();
+        }
+      }, 1000);
+    }
+  };
+
+  const formatStopwatchTime = (secs) => {
+    const m = Math.floor(secs / 60);
+    const s = secs % 60;
+    return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  };
+
+  // ==========================================================================
+  // 12. NEW FOCUS FEATURE E: GRATITUDE CALENDAR GRID LOG BOOK
+  // ==========================================================================
+  
+  // Save reflection log entries by date
+  const saveGratitudeLog = (text) => {
+    const todayStr = new Date().toISOString().split('T')[0];
+    const saved = localStorage.getItem('zenfocus_journal_log');
+    let logs = {};
+    
+    if (saved) {
+      try {
+        logs = JSON.parse(saved);
+      } catch(e) {
+        logs = {};
+      }
+    }
+    
+    if (text.trim()) {
+      logs[todayStr] = text.trim();
+    } else {
+      delete logs[todayStr];
+    }
+    
+    localStorage.setItem('zenfocus_journal_log', JSON.stringify(logs));
+    
+    // Dynamically update the specific square if insights desk is active
+    if (!UI.paneInsights.classList.contains('hidden')) {
+      renderGratitudeGrid();
+    }
+  };
+
+  // Render 84 grid squares (12 Weeks matrix)
+  const renderGratitudeGrid = () => {
+    UI.gratitudeGrid.innerHTML = '';
+    
+    const savedLogs = localStorage.getItem('zenfocus_journal_log');
+    let logs = {};
+    if (savedLogs) {
+      try {
+        logs = JSON.parse(savedLogs);
+      } catch(e) {
+        logs = {};
+      }
+    }
+
+    const now = new Date();
+    
+    // Map chronological preceding 84 dates (starting 12 weeks ago)
+    for (let i = 83; i >= 0; i--) {
+      const targetDate = new Date();
+      targetDate.setDate(now.getDate() - i);
+      const dateStr = targetDate.toISOString().split('T')[0];
+      
+      const square = document.createElement('div');
+      square.className = 'grid-square';
+      
+      // Determine contribution levels
+      const reflectionText = logs[dateStr] || '';
+      if (reflectionText) {
+        // High density visual glow if text is rich
+        const level = reflectionText.length > 50 ? 'level-2' : 'level-1';
+        square.classList.add(level);
+      } else {
+        square.classList.add('level-0');
+      }
+      
+      // Custom date details tooltip
+      const formattedDate = targetDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+      square.title = reflectionText ? `${formattedDate} (Click to read)` : formattedDate;
+      
+      // Open detailed reflection popup modal
+      square.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (reflectionText) {
+          UI.popoverDate.textContent = targetDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+          UI.popoverContent.textContent = `“ ${reflectionText} ”`;
+          UI.gratitudePopover.classList.add('active');
+        } else {
+          UI.gratitudePopover.classList.remove('active');
+        }
+      });
+      
+      UI.gratitudeGrid.appendChild(square);
+    }
+  };
+
+  // Close reflection details popover
+  UI.btnClosePopover.addEventListener('click', (e) => {
+    e.stopPropagation();
+    UI.gratitudePopover.classList.remove('active');
+  });
+
+  // Close popup if clicking outside
+  document.addEventListener('click', () => {
+    UI.gratitudePopover.classList.remove('active');
+  });
+  UI.gratitudePopover.addEventListener('click', (e) => e.stopPropagation());
+
+
+  // ==========================================================================
+  // 13. MONK MODE VIEWPORT SYSTEM STATE
   // ==========================================================================
   UI.btnMonkToggle.addEventListener('click', () => {
     STATE.monkMode = !STATE.monkMode;
@@ -1414,7 +1779,6 @@ document.addEventListener('DOMContentLoaded', () => {
       UI.btnMonkToggle.classList.remove('btn-secondary');
       UI.btnMonkToggle.querySelector('span').textContent = "Exit Monk Mode";
       
-      // Slow down background canvas particle speed (deep cosmic calm)
       STATE.particleSpeedMultiplier = 0.15;
     } else {
       document.body.classList.remove('monk-mode-active');
@@ -1422,14 +1786,12 @@ document.addEventListener('DOMContentLoaded', () => {
       UI.btnMonkToggle.classList.remove('btn-primary');
       UI.btnMonkToggle.querySelector('span').textContent = "Monk Mode";
       
-      // Restore standard particle movement speed
       STATE.particleSpeedMultiplier = 1.0;
     }
   });
 
-
   // ==========================================================================
-  // 11. DYNAMIC KANBAN TASK DESK (WITH DRAG & DROP & LOCAL STORAGE)
+  // 14. KANBAN TASK DESK ENGINE
   // ==========================================================================
   const updateTaskCounts = () => {
     const counts = { todo: 0, progress: 0, completed: 0 };
@@ -1474,11 +1836,29 @@ document.addEventListener('DOMContentLoaded', () => {
   const renderTaskCard = (task) => {
     const card = document.createElement('div');
     card.className = `task-item ${task.status === 'completed' ? 'completed-task' : ''}`;
+    if (STATE.activeTaskTimerId === task.id) {
+      card.classList.add('timer-active');
+    }
     card.id = `task-${task.id}`;
     card.draggable = true;
     
     const priBadge = `<span class="priority-tag ${task.priority}">${task.priority}</span>`;
     
+    // Micro Stopwatch timer elements
+    const elapsedVal = formatStopwatchTime(task.elapsedSeconds || 0);
+    const timerTag = `<div class="card-timer-tag">
+      <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.5">
+        <circle cx="12" cy="12" r="10" />
+        <polyline points="12 6 12 12 16 14" />
+      </svg>
+      <span>${elapsedVal}</span>
+    </div>`;
+
+    const timerPlayIcon = STATE.activeTaskTimerId === task.id
+      ? '<rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/>' // pause icon
+      : '<polygon points="5 3 19 12 5 21 5 3" />'; // play icon
+
+    // Completion icon
     const actionIcons = task.status === 'completed' 
       ? `<button class="task-action-btn btn-check" title="Mark Active">
           <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="var(--color-low)" stroke-width="2.5">
@@ -1495,7 +1875,13 @@ document.addEventListener('DOMContentLoaded', () => {
       <p class="task-desc">${escapeHTML(task.text)}</p>
       <div class="task-meta">
         ${priBadge}
+        ${timerTag}
         <div class="task-actions">
+          <button class="task-action-btn btn-card-timer" title="Start/Pause Task Stopwatch">
+            <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor">
+              ${timerPlayIcon}
+            </svg>
+          </button>
           ${actionIcons}
           <button class="task-action-btn btn-delete" title="Delete Task">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
@@ -1516,7 +1902,13 @@ document.addEventListener('DOMContentLoaded', () => {
       card.classList.remove('dragging');
     });
 
+    // Check complete listener
     card.querySelector('.btn-check').addEventListener('click', () => {
+      // Pause stopwatch if card is completed
+      if (STATE.activeTaskTimerId === task.id) {
+        toggleTaskStopwatch(task.id);
+      }
+      
       if (task.status === 'completed') {
         task.status = 'todo';
       } else {
@@ -1526,7 +1918,17 @@ document.addEventListener('DOMContentLoaded', () => {
       reloadTasksView();
     });
 
+    // Stopwatch Play/Pause toggle
+    card.querySelector('.btn-card-timer').addEventListener('click', () => {
+      toggleTaskStopwatch(task.id);
+    });
+
+    // Delete listener
     card.querySelector('.btn-delete').addEventListener('click', () => {
+      if (STATE.activeTaskTimerId === task.id) {
+        toggleTaskStopwatch(task.id);
+      }
+      
       card.style.animation = 'taskFadeOut 0.25s ease forwards';
       card.addEventListener('animationend', () => {
         STATE.tasks = STATE.tasks.filter(t => t.id !== task.id);
@@ -1581,6 +1983,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const task = STATE.tasks.find(t => t.id === taskId);
         
         if (task && task.status !== targetStatus) {
+          // If task timer is active and card gets moved to completed column, pause it
+          if (targetStatus === 'completed' && STATE.activeTaskTimerId === task.id) {
+            toggleTaskStopwatch(task.id);
+          }
+          
           task.status = targetStatus;
           saveTasks();
           reloadTasksView();
@@ -1598,7 +2005,8 @@ document.addEventListener('DOMContentLoaded', () => {
       id: Date.now(),
       text: text,
       priority: UI.taskPriority.value,
-      status: 'todo'
+      status: 'todo',
+      elapsedSeconds: 0 // initialize stopwatch
     };
 
     STATE.tasks.push(newTask);
@@ -1622,9 +2030,9 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     } else {
       STATE.tasks = [
-        { id: 1, text: "Focus on writing clean CSS for this hub", priority: "high", status: "progress" },
-        { id: 2, text: "Explore Web Audio synth controls", priority: "medium", status: "todo" },
-        { id: 3, text: "Breathe in deeply for 4 seconds", priority: "low", status: "completed" }
+        { id: 1, text: "Focus on writing clean CSS for this hub", priority: "high", status: "progress", elapsedSeconds: 45 },
+        { id: 2, text: "Explore Web Audio synth controls", priority: "medium", status: "todo", elapsedSeconds: 0 },
+        { id: 3, text: "Breathe in deeply for 4 seconds", priority: "low", status: "completed", elapsedSeconds: 4 }
       ];
       saveTasks();
     }
@@ -1632,7 +2040,7 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   // ==========================================================================
-  // 12. INSPIRATION 3D FLIP CARD LOGIC
+  // 15. INSPIRATION 3D FLIP CARD LOGIC
   // ==========================================================================
   const flipQuoteCard = () => {
     const isFlipped = UI.quoteCardInner.classList.toggle('flipped');
@@ -1670,7 +2078,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
   // ==========================================================================
-  // 13. AUTO-SAVE JOURNAL DESK LOGIC
+  // 16. AUTO-SAVE JOURNAL DESK LOGIC
   // ==========================================================================
   const setupJournal = () => {
     const savedJournal = localStorage.getItem('zenfocus_journal');
@@ -1683,9 +2091,15 @@ document.addEventListener('DOMContentLoaded', () => {
       clearTimeout(saveTimeout);
       
       saveTimeout = setTimeout(() => {
-        localStorage.setItem('zenfocus_journal', e.target.value);
-        UI.journalSaved.classList.remove('hidden');
+        const text = e.target.value;
         
+        // Save to active notepad
+        localStorage.setItem('zenfocus_journal', text);
+        
+        // SAVE TO THE GRATITUDE CALENDAR GRID LOG DATABASE
+        saveGratitudeLog(text);
+        
+        UI.journalSaved.classList.remove('hidden');
         setTimeout(() => {
           UI.journalSaved.classList.add('hidden');
         }, 2500);
@@ -1694,21 +2108,28 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   // ==========================================================================
-  // 14. INITIALIZE SYSTEM
+  // 17. INITIALIZE SYSTEM
   // ==========================================================================
+  const TIMER_MODES = {
+    focus: { time: 1500, label: "Keep focused" },
+    short: { time: 300, label: "Take a breath" },
+    long: { time: 900, label: "Deep unwind" }
+  };
+
   initCanvasBackground();
   setupSoundscapes();
   setupCustomMixes();
   setupBinauralBeats();
+  setupSolfeggioResonance();
   loadTasks();
   setupDragAndDrop();
   setupJournal();
   
   // Set default unlocked states on badge grid
-  const savedStats = localStorage.getItem('zenfocus_stats');
-  if (savedStats) {
+  const loadedStats = localStorage.getItem('zenfocus_stats');
+  if (loadedStats) {
     try {
-      const stats = JSON.parse(savedStats);
+      const stats = JSON.parse(loadedStats);
       checkMilestones(stats.sessions.length || 0);
     } catch(e) {
       checkMilestones(0);
@@ -1717,5 +2138,5 @@ document.addEventListener('DOMContentLoaded', () => {
     checkMilestones(0);
   }
   
-  console.log("ZenFocus upgraded features booted and loaded successfully.");
+  console.log("ZenFocus ultimate upgrades successfully booted and loaded.");
 });
