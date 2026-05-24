@@ -1,0 +1,10 @@
+# System files
+.DS_Store
+Thumbs.db
+
+# Project logs
+*.log
+
+# Workspace environment files
+.gemini/
+.system_generated/

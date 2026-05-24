@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ZenFocus — Premium Ambient Productivity Hub</title>
+  <meta name="description" content="A premium glassmorphic ambient focus and productivity workspace. Features procedural audio synthesis, Pomodoro timer, Kanban desk, and daily journal.">
+  
+  <!-- Modern Premium Typography -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  
+  <!-- CSS Stylesheet -->
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <!-- Dynamic Interactive Particle Canvas Background -->
+  <canvas id="canvas-bg"></canvas>
+
+  <!-- Sound permission/activation overlay -->
+  <div id="audio-consent-overlay" class="overlay">
+    <div class="glass-card consent-card">
+      <div class="consent-icon">
+        <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
+          <path d="M19 10v1a7 7 0 0 1-14 0v-1M12 19v3M8 22h8" />
+        </svg>
+      </div>
+      <h2>Welcome to ZenFocus</h2>
+      <p>A beautiful, premium ambient focus space. Enable audio processing to synthesize realistic rain, ocean waves, and focus tones procedurally in your browser.</p>
+      <button id="btn-enter" class="btn btn-primary">Enter Space</button>
+    </div>
+  </div>
+
+  <div class="app-container">
+    <!-- Header Area -->
+    <header class="app-header">
+      <div class="logo-area">
+        <div class="logo-symbol">
+          <div class="glow-dot"></div>
+        </div>
+        <div class="logo-text">
+          <h1>ZenFocus</h1>
+          <span>Ambient Workspace</span>
+        </div>
+      </div>
+      
+      <div class="header-widgets">
+        <div class="clock-widget">
+          <div id="clock-time">00:00:00</div>
+          <div id="clock-date">Sunday, May 24</div>
+        </div>
+      </div>
+    </header>
+
+    <!-- Main Workspace -->
+    <main class="app-main">
+      
+      <!-- Left Column: Focus & Audio Tools -->
+      <section class="workspace-panel-left">
+        
+        <!-- Pomodoro Focus Card -->
+        <div class="glass-card pomodoro-card">
+          <div class="card-header">
+            <h2 class="card-title">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10" />
+                <polyline points="12 6 12 12 16 14" />
+              </svg>
+              Focus Chamber
+            </h2>
+            <div class="timer-modes">
+              <button class="mode-tab active" data-mode="focus">Focus</button>
+              <button class="mode-tab" data-mode="short">Short Break</button>
+              <button class="mode-tab" data-mode="long">Long Break</button>
+            </div>
+          </div>
+
+          <div class="timer-display-container">
+            <svg class="timer-ring" width="240" height="240">
+              <circle class="timer-ring-bg" cx="120" cy="120" r="108" />
+              <circle class="timer-ring-progress" id="timer-progress" cx="120" cy="120" r="108" />
+            </svg>
+            <div class="timer-time" id="timer-time">25:00</div>
+            <div class="timer-status" id="timer-status">Get ready to focus</div>
+          </div>
+
+          <div class="timer-controls">
+            <button id="btn-timer-toggle" class="btn btn-primary btn-round">
+              <svg id="icon-play" viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                <polygon points="5 3 19 12 5 21 5 3" />
+              </svg>
+              <svg id="icon-pause" class="hidden" viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                <rect x="6" y="4" width="4" height="16" />
+                <rect x="14" y="4" width="4" height="16" />
+              </svg>
+            </button>
+            <button id="btn-timer-reset" class="btn btn-secondary btn-round" title="Reset Timer">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67" />
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- Ambient Sound Control Desk -->
+        <div class="glass-card sound-card">
+          <div class="card-header">
+            <h2 class="card-title">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 2v20M17 5v14M22 9v6M7 8v8M2 10v4" />
+              </svg>
+              Soundscapes
+            </h2>
+            <span class="badge">Procedural Audio</span>
+          </div>
+
+          <div class="sound-grid">
+            <!-- Rain Synthesizer -->
+            <div class="sound-item" id="sound-rain">
+              <div class="sound-info">
+                <button class="sound-toggle-btn" aria-label="Toggle Rain">
+                  <svg class="icon-sound" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242M16 14v6M8 14v6M12 16v6" />
+                  </svg>
+                  <span>Ambient Rain</span>
+                </button>
+              </div>
+              <div class="slider-wrapper">
+                <input type="range" class="sound-slider" min="0" max="100" value="0" aria-label="Rain volume">
+                <div class="slider-progress"></div>
+              </div>
+            </div>
+
+            <!-- Ocean Waves Synthesizer -->
+            <div class="sound-item" id="sound-waves">
+              <div class="sound-info">
+                <button class="sound-toggle-btn" aria-label="Toggle Waves">
+                  <svg class="icon-sound" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M2 6c.6.5 1.2 1 2.5 1C7 7 7 5 9.5 5c2.5 0 2.5 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1M2 12c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 2.5 0 2.5 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1M2 18c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 2.5 0 2.5 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1" />
+                  </svg>
+                  <span>Ocean Waves</span>
+                </button>
+              </div>
+              <div class="slider-wrapper">
+                <input type="range" class="sound-slider" min="0" max="100" value="0" aria-label="Waves volume">
+                <div class="slider-progress"></div>
+              </div>
+            </div>
+
+            <!-- Summer Birds Synthesizer -->
+            <div class="sound-item" id="sound-birds">
+              <div class="sound-info">
+                <button class="sound-toggle-btn" aria-label="Toggle Birds">
+                  <svg class="icon-sound" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37Z" />
+                    <path d="M8 3H5a2 2 0 0 0-2 2v3a2 2 0 0 0 2 2h3a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2Z" />
+                    <path d="M21 16v3a2 2 0 0 1-2 2h-3a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3a2 2 0 0 1 2 2Z" />
+                  </svg>
+                  <span>Forest Birds</span>
+                </button>
+              </div>
+              <div class="slider-wrapper">
+                <input type="range" class="sound-slider" min="0" max="100" value="0" aria-label="Birds volume">
+                <div class="slider-progress"></div>
+              </div>
+            </div>
+
+            <!-- Focus Synth Drone Synthesizer -->
+            <div class="sound-item" id="sound-drone">
+              <div class="sound-info">
+                <button class="sound-toggle-btn" aria-label="Toggle Drone">
+                  <svg class="icon-sound" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 2L2 7l10 5 10-5-10-5ZM2 17l10 5 10-5M2 12l10 5 10-5" />
+                  </svg>
+                  <span>Focus Drone</span>
+                </button>
+              </div>
+              <div class="slider-wrapper">
+                <input type="range" class="sound-slider" min="0" max="100" value="0" aria-label="Drone volume">
+                <div class="slider-progress"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Right Column: Kanban Desk -->
+      <section class="workspace-panel-right">
+        <div class="glass-card kanban-card">
+          <div class="card-header">
+            <h2 class="card-title">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="3" width="18" height="18" rx="2" />
+                <path d="M9 3v18M15 3v18M3 9h18" />
+              </svg>
+              Kanban Desk
+            </h2>
+            <div class="task-stats">
+              <span id="tasks-count">0 tasks</span>
+            </div>
+          </div>
+
+          <!-- Add Task Input Form -->
+          <form id="task-form" class="task-input-bar">
+            <input type="text" id="task-input" placeholder="Type a new focus task..." required autocomplete="off">
+            
+            <div class="select-wrapper">
+              <select id="task-priority" aria-label="Priority selector">
+                <option value="low">Low</option>
+                <option value="medium" selected>Medium</option>
+                <option value="high">High</option>
+              </select>
+            </div>
+
+            <button type="submit" class="btn btn-primary" aria-label="Add Task">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+              </svg>
+            </button>
+          </form>
+
+          <!-- Kanban Board Columns -->
+          <div class="kanban-board">
+            <!-- To Do -->
+            <div class="kanban-column" id="col-todo" data-status="todo">
+              <div class="column-header">
+                <h3>To Do</h3>
+                <span class="column-badge" id="badge-todo">0</span>
+              </div>
+              <div class="column-body drag-zone" id="list-todo">
+                <!-- Tasks dynamically added here -->
+              </div>
+            </div>
+
+            <!-- In Progress -->
+            <div class="kanban-column" id="col-progress" data-status="progress">
+              <div class="column-header">
+                <h3>In Progress</h3>
+                <span class="column-badge" id="badge-progress">0</span>
+              </div>
+              <div class="column-body drag-zone" id="list-progress">
+                <!-- Tasks dynamically added here -->
+              </div>
+            </div>
+
+            <!-- Completed -->
+            <div class="kanban-column" id="col-completed" data-status="completed">
+              <div class="column-header">
+                <h3>Completed</h3>
+                <span class="column-badge" id="badge-completed">0</span>
+              </div>
+              <div class="column-body drag-zone" id="list-completed">
+                <!-- Tasks dynamically added here -->
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Bottom Shelf: Inspiration Card & Daily reflection -->
+    <footer class="app-shelf">
+      
+      <!-- 3D Flipping Quote Card -->
+      <div class="glass-card inspiration-card-container">
+        <div class="quote-card-inner" id="quote-card-inner">
+          
+          <!-- Front Face -->
+          <div class="quote-card-front">
+            <div class="quote-content">
+              <span class="quote-icon">“</span>
+              <p id="quote-text" class="quote-text">Simplify your workflow, then amplify your mind.</p>
+              <div class="quote-author" id="quote-author">— ZenFocus Wisdom</div>
+            </div>
+            <button id="btn-new-quote" class="btn btn-text-icon" aria-label="Next Quote">
+              <span>Next Wisdom</span>
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M5 12h14M12 5l7 7-7 7" />
+              </svg>
+            </button>
+          </div>
+          
+          <!-- Back Face -->
+          <div class="quote-card-back">
+            <div class="quote-content">
+              <span class="quote-icon">“</span>
+              <p id="quote-text-back" class="quote-text">Focus is a muscle, and silence is its gym.</p>
+              <div class="quote-author" id="quote-author-back">— Deep Mind</div>
+            </div>
+            <button id="btn-new-quote-back" class="btn btn-text-icon" aria-label="Next Quote">
+              <span>Next Wisdom</span>
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M5 12h14M12 5l7 7-7 7" />
+              </svg>
+            </button>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Reflection & Intentions Notepad -->
+      <div class="glass-card journal-card">
+        <div class="card-header">
+          <h2 class="card-title">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5Z" />
+            </svg>
+            Daily Reflection
+          </h2>
+          <span id="journal-saved" class="journal-status hidden">Auto-saved</span>
+        </div>
+        <textarea id="journal-input" placeholder="What are you grateful for today? What did you achieve? Write your quiet thoughts here..." autocomplete="off"></textarea>
+      </div>
+    </footer>
+  </div>
+
+  <!-- Main JavaScript File -->
+  <script src="app.js"></script>
+</body>
+</html>
